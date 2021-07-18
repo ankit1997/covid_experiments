@@ -29,7 +29,9 @@ export class AppComponent implements OnInit {
   };
   data: any = {};
   stepData: any = { datasets: [{ data: [], pointBackgroundColor: 'red' }] };
+  numSteps: number = 0;
   step: number = -1;
+  firstTime: boolean = true;
 
   @ViewChild('chart') chart: any;
 
@@ -74,6 +76,7 @@ export class AppComponent implements OnInit {
 
   setNextStepData() {
     this.step += 1;
+
     const numAgents = this.data['num_agents'];
     const startInd = this.step * numAgents;
     const endInd = startInd + numAgents;
@@ -83,15 +86,21 @@ export class AppComponent implements OnInit {
       return { x: p[0], y: p[1] };
     });
 
-    if (this.step === 0) {
+    if (this.firstTime) {
       const boxes: any[] = this.getBoxData();
       this.stepData.datasets.push(...boxes);
+      this.firstTime = false;
+    }
+
+    if (this.step == this.numSteps) {
+      this.step = -1;
     }
   }
 
   reloadData() {
     this.backendService.reloadData().subscribe((result) => {
       this.data = result;
+      this.numSteps = this.data.step[this.data.step.length - 1];
     });
   }
 }

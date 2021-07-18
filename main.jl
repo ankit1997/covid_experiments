@@ -308,12 +308,12 @@ function main()
 	println("Running x", num_iter, " iterations")
 	df_agent, df_model = run!(model, agent_step!, model_step!, num_iter; adata=[:pos, :infection_status])
 
-	locations = map(loc -> [loc.x_min, loc.x_max, loc.y_min, loc.y_max], model.Locations)
 	h5open("locations.h5", "w") do file
 		write(file, "xmin", map(loc -> loc.x_min, model.Locations))
 		write(file, "xmax", map(loc -> loc.x_max, model.Locations))
 		write(file, "ymin", map(loc -> loc.y_min, model.Locations))
 		write(file, "ymax", map(loc -> loc.y_max, model.Locations))
+		write(file, "type", map(loc -> string(loc.type), model.Locations))
 	end
 
     CSV.write("df_agent.csv", df_agent)
@@ -337,7 +337,10 @@ function serve()
 		ymax = h5open("locations.h5", "r") do file
 			read(file, "ymax")
 		end
-		locations = [xmin xmax ymin ymax]
+		type = h5open("locations.h5", "r") do file
+			read(file, "type")
+		end
+		locations = [xmin xmax ymin ymax type]
 		x_max = max(xmax...)
 		y_max = max(ymax...)
 
@@ -351,6 +354,9 @@ function serve()
 	up(8082, async=false)
 end
 
-# main()
-serve()
+if "serve" in ARGS
+	serve()
+else
+	main()
+end
 
