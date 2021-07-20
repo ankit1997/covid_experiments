@@ -1,9 +1,28 @@
+<div class="p-grid">
+  <div class="p-col-5">
+    <div style="width: 400px">
+      <h3>Hour: {{ step }}, Day = {{ day }}</h3>
+      <p-slider
+        [(ngModel)]="step"
+        [min]="0"
+        [max]="numSteps"
+        (onChange)="sliderChange($event)"
+      ></p-slider>
+    </div>
+  </div>
+</div>
+<div class="p-grid p-col-5">
+  <p-button style="width: 100%" (onClick)="anim_onoff = !anim_onoff">{{
+    anim_onoff ? "Pause" : "Play"
+  }}</p-button>
+</div>
+
 <p-chart
   #chart
   type="scatter"
   [data]="stepData"
   [options]="options"
-  width="200"
-  height="600"
+  width="580px"
+  height="580px"
 >
 </p-chart>
