@@ -7,9 +7,10 @@ import { AppComponent } from './app.component';
 import { ChartModule } from 'primeng/chart';
 import { ButtonModule } from 'primeng/button';
 import { SliderModule } from 'primeng/slider';
+import { SimulationComponent } from './simulation/simulation.component';
 
 @NgModule({
-  declarations: [AppComponent],
+  declarations: [AppComponent, SimulationComponent],
   imports: [
     BrowserModule,
     ChartModule,

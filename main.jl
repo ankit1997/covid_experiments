@@ -1,4 +1,4 @@
-using Agents:DataFrames, isempty, all_pairs!
+using Agents:DataFrames, isempty, all_pairs!, length
 using CSV
 using Plots
 using Agents
@@ -7,6 +7,8 @@ using Genie
 using JSON
 using HDF5
 using Test
+using Dates
+using Random
 import Base.+, Base.-, Base./, Base.*
 
 Genie.config.run_as_server = true
@@ -31,8 +33,10 @@ mutable struct Person <: AbstractAgent
 	home_loc_id::Int64
 	current_loc_id::Int64
 	upcoming_pos::Array{NTuple{2,Float64}}
+	# infection_status can be :S (susceptible), :IU (infected, undetected), :ID (infected, detected), :R (recovered), :D (deceased)
 	infection_status::Symbol
-	infection_detected::Bool
+	# number of steps in current `infection_status` value
+	infection_status_duration::Int64
 	social_distancing::Float64
 end
 
@@ -60,6 +64,8 @@ clamp_in_loc(pos::NTuple{2,Float64}, loc::Location)::NTuple{2,Float64} = (clamp(
 interpolate(old::Float64, new::Float64, t::Int64, t0::Int64, tn::Int64)::Float64 = (tn == t0) ? new : (((tn - t) * old + (t - t0) * new) / (tn - t0))
 
 distance(p1::NTuple{2,Float64}, p2::NTuple{2,Float64}) = sqrt((p1[1]-p2[1])^2 + (p1[2]-p2[2])^2)
+
+is_infected(a::Person)::Bool = startswith(string(a.infection_status), "I")
 
 function init_locations(location_map::Matrix{Symbol}, location_info::Dict, loc_width::Float64, loc_height::Float64)::Array{Location}
 	# Create locations array from location map
@@ -115,15 +121,24 @@ function model_props()::Dict
 	unit_interpolation = 2
 	day_steps = 24
 
+	num_houses = 10
+	num_hospitals = 2
+	num_empty = 24
+
+	# probability of detecting infection of an infected person on ith day
+	prob_detect = [0.01, 0.09, 0.1, 0.15, 0.2, 0.3, 0.4, 0.5, 0.6]
+
 	# Create locations
-	location_map = [
-		[:o :h :h :o :o]
-		[:+ :o :o :o :o]
-		[:h :o :h :o :h]
-		[:o :o :o :o :o]
-		[:h :h :o :h :o]
-		[:h :o :o :h :o]
-	]
+	location_map = Random.shuffle(reshape([fill(:h, num_houses);  fill(:+, num_hospitals); fill(:o, num_empty)], (6, 6)))
+	# location_map = [
+	# 	[:o :h :h :o :o]
+	# 	[:+ :o :o :o :o]
+	# 	[:h :o :h :o :h]
+	# 	[:o :o :o :o :o]
+	# 	[:h :h :o :h :o]
+	# 	[:h :o :o :h :o]
+	# ]
+	location_map = reverse(location_map, dims=1) # reverse the order so that it looks same while plotting - row becomes +ve y axis, column becomes +ve x axis
 	location_info = Dict(   :o => (name = "Empty", capacity = 50), 
 							:h => (name = "House", capacity = 10), 
 							:+ => (name = "Hospital", capacity = 100)
@@ -144,6 +159,7 @@ function model_props()::Dict
 				:loc_width => loc_width,
 				:unit_interpolation => unit_interpolation,
 				:day_steps => day_steps,
+				:prob_detect => prob_detect,
 				:loc_ind_to_id => (ind) -> ((ind[1] - 1) * width + ind[2]),
 				:loc_id_to_ind => (id) -> (cld(id, width), ((id - 1) % width) + 1),
 				:is_valid_loc_ind => (ind) -> (1 <= ind[1] <= height && 1 <= ind[2] <= width),
@@ -275,6 +291,13 @@ function agent_step!(agent::Person, model::ABM)::Nothing
 
 	social_distancing!(agent, model)
 
+	if agent.infection_status == :IU && is_probable(model.prob_detect[clamp(div(agent.infection_status_duration, model.day_steps), 1, length(model.prob_detect))])
+		agent.infection_status = :ID
+		agent.infection_status_duration = 0
+	else
+		agent.infection_status_duration += 1
+	end
+
 	nothing
 end
 
@@ -302,18 +325,29 @@ function social_distancing!(agent::Person, model::ABM)
     
 end
 
-function transmit!(a1, a2)
-    count(a.infection_status == :I for a in (a1, a2)) ≠ 1 && return
-    infected, healthy = a1.infection_status == :I ? (a1, a2) : (a2, a1)
-	if is_probable(0.3)
-    	healthy.infection_status = :I
+function can_interact(locations::Array{Location}, a1::Person, a2::Person)::Bool
+	if a1.current_loc_id == a2.current_loc_id
+		return true
+	end
+	if locations[a1.current_loc_id].type == locations[a2.current_loc_id].type == :o
+		return true
+	end
+	return false
+end
+
+function transmit!(model::ABM, a1::Person, a2::Person)
+    count(is_infected(a) for a in (a1, a2)) ≠ 1 && return
+    infected, healthy = is_infected(a1) ? (a1, a2) : (a2, a1)
+	if is_probable(0.3) && can_interact(model.Locations, a1, a2)
+    	healthy.infection_status = :IU
+		healthy.infection_status_duration = 0
 	end
     nothing
 end
 
 function model_step!(model)
 	for (a1, a2) in interacting_pairs(model, model.interaction_radius, :nearest)
-        transmit!(a1, a2)
+        transmit!(model, a1, a2)
     end
 	model.step = model.step + 1
 	if model.step % model.day_steps === 0
@@ -333,7 +367,7 @@ function init_world(n::Int64, model::ABM, initial_infections::Int64=1)
 		loc = rand(available_houses)
 		pos = random_in_loc(loc)
 		# add agent into the model
-		add_agent!(pos, model, loc.id, loc.id, [], i in infected ? :I : :S, false, 0.0)
+		add_agent!(pos, model, loc.id, loc.id, [], i in infected ? :IU : :S, 0, 0.0)
 		model.Locations[loc.id].capacity -= 1
 	end
 	nothing
@@ -349,15 +383,38 @@ function get_model(num_agents::Int64)::ABM
 	
 end
 
+function model_stats(model::ABM)::Array{Float64}
+	susc = 0
+	inf_undetected = 0
+	inf_detected = 0
+	recovered = 0
+	deceased = 0
+	for (_, a) in model.agents
+		if a.infection_status == :S
+			susc += 1
+		elseif a.infection_status == :IU
+			inf_undetected += 1
+		elseif a.infection_status == :ID
+			inf_detected += 1
+		elseif a.infection_status == :R
+			recovered += 1
+		elseif a.infection_status == :D
+			deceased += 1
+		end
+	end
+	return [susc, inf_undetected, inf_detected, recovered, deceased]
+end
+
 function main()
-	num_agents = 80
-	num_iter = 100
+	println("Started at ", Dates.format(now(), "HH:MM:SS"))
+	num_agents = 200
+	num_iter = 200
 
 	model = get_model(num_agents)
 	
 	# Run simulation and save agent info
 	println("Running x", num_iter, " iterations")
-	df_agent, df_model = run!(model, agent_step!, model_step!, num_iter; adata=[:pos, :infection_status, :home_loc_id, :current_loc_id])
+	df_agent, df_model = run!(model, agent_step!, model_step!, num_iter; adata=[:pos, :infection_status, :home_loc_id, :current_loc_id], mdata=[model_stats])
 
 	h5open("locations.h5", "w") do file
 		write(file, "xmin", map(loc -> loc.x_min, model.Locations))
@@ -370,12 +427,16 @@ function main()
     CSV.write("df_agent.csv", df_agent)
     CSV.write("df_model.csv", df_model)
 
+	println("Ended at ", Dates.format(now(), "HH:MM:SS"))
+
 end
 
 function serve()
+	println("Serving now...")
 	route("/get") do
 
 		df_agents = CSV.File(open(read, "df_agent.csv")) |> DataFrames.DataFrame
+		df_model = CSV.File(open(read, "df_model.csv")) |> DataFrames.DataFrame
 		xmin = h5open("locations.h5", "r") do file
 			read(file, "xmin")
 		end
@@ -395,6 +456,7 @@ function serve()
 		x_max = max(xmax...)
 		y_max = max(ymax...)
 
+		model_stats = eval.(Meta.parse.(df_model.model_stats))
 		num_agents = length(unique(df_agents.id))
 		step = df_agents.step
 		pos = eval.(Meta.parse.(df_agents.pos))
@@ -410,7 +472,8 @@ function serve()
 					"pos" => pos, 
 					"locations" => locations, 
 					"x_max" => x_max, 
-					"y_max" => y_max)
+					"y_max" => y_max,
+					"model_stats" => model_stats)
 
 		JSON.json(data)
 	end
@@ -423,13 +486,17 @@ function test()
 	@test true
 end
 
-if "test" in ARGS
+
+if length(ARGS) == 1 && "test" == ARGS[1]
 	test()
-elseif "serve" in ARGS
+elseif length(ARGS) == 1 && "serve" == ARGS[1]
 	serve()
-elseif "run" in ARGS
+elseif length(ARGS) == 1 && "run" == ARGS[1]
 	main()
+elseif length(ARGS) == 2 && "run" == ARGS[1] && "serve" == ARGS[2]
+	main()
+	serve()
 else
-	println("Syntax: julia main.jl [test, serve, run]")
+	println("Invalid arguments")
 end
 
