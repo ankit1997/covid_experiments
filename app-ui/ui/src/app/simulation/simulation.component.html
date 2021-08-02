@@ -1,66 +1,241 @@
+<p-toast></p-toast>
+
 <div>
-  <div class="p-grid" style="margin: 5px">
-    <div style="min-width: 200px">
-      <h4>Hour: {{ step }}, Day = {{ day }}</h4>
-      <p-slider
-        [(ngModel)]="step"
-        [min]="0"
-        [max]="numSteps"
-        (onChange)="sliderChange($event)"
-      ></p-slider>
-    </div>
-  </div>
-  <div class="p-grid" style="margin: 5px">
-    <span class="p-buttonset">
-      <button
-        pButton
-        pRipple
-        type="button"
-        icon="pi pi-backward"
-        class="p-button-rounded p-button-text"
-        (click)="playButtonEvent('previous')"
-      ></button>
-      <button
-        pButton
-        pRipple
-        type="button"
-        icon="pi {{
-          loading ? 'pi-spin pi-spinner' : onOff ? 'pi-pause' : 'pi-play'
-        }}"
-        class="p-button-rounded p-button-text"
-        (click)="playButtonEvent('play_pause')"
-      ></button>
-      <button
-        pButton
-        pRipple
-        type="button"
-        icon="pi pi-forward"
-        class="p-button-rounded p-button-text"
-        (click)="playButtonEvent('next')"
-      ></button>
-    </span>
-  </div>
-  <div class="p-grid">
-    <div class="p-col" style="margin: 5px">
-      <p-chart
-        #scatterChart
-        type="scatter"
-        [data]="stepData"
-        [options]="scatterOptions"
-        width="{{ width }}"
-        height="{{ height }}"
-      >
-      </p-chart>
-    </div>
-    <div class="p-col" style="margin: 5px">
-      <p-chart
-        #plotChart
-        type="line"
-        [data]="plotData"
-        [options]="plotOptions"
-        width="{{ width }}"
-        height="{{ height + 20 }}"
-      ></p-chart>
-    </div>
-  </div>
+  <p-accordion [multiple]="true">
+    <p-accordionTab header="Parameters" [selected]="!modelInitiated">
+      <div>
+        <div class="p-fluid p-grid">
+          <div class="p-field p-col-12 p-md-2 input-field">
+            <span class="p-float-label">
+              <input
+                type="text"
+                id="inputmodelname"
+                pInputText
+                [(ngModel)]="params.model_name"
+                [disabled]="modelInitiated"
+              />
+              <label>Model Name</label>
+            </span>
+          </div>
+          <div class="p-field p-col-12 p-md-2 input-field">
+            <span class="p-float-label">
+              <p-inputNumber
+                type="text"
+                [(ngModel)]="params.initial_infections"
+                [disabled]="modelInitiated"
+              ></p-inputNumber>
+              <label>Initial Infections</label>
+            </span>
+          </div>
+          <div class="p-field p-col-12 p-md-2 input-field">
+            <span class="p-float-label">
+              <p-inputNumber
+                type="text"
+                [(ngModel)]="params.location.num_houses"
+                [disabled]="modelInitiated"
+              ></p-inputNumber>
+              <label>Number of Houses</label>
+            </span>
+          </div>
+          <div class="p-field p-col-12 p-md-2 input-field">
+            <span class="p-float-label">
+              <p-inputMask
+                mask="99 x 99"
+                [(ngModel)]="params.location.map_dimensions"
+                [disabled]="modelInitiated"
+              ></p-inputMask>
+              <label>Map Dimensions</label>
+            </span>
+          </div>
+        </div>
+        <div class="p-fluid p-grid">
+          <div class="p-field p-col-12 p-md-2 input-field">
+            <div class="p-inputgroup">
+              <span class="p-float-label">
+                <p-inputNumber
+                  inputId="integeronly"
+                  [(ngModel)]="params.num_agents"
+                  [disabled]="modelInitiated"
+                >
+                </p-inputNumber>
+                <label>Number of agents</label>
+              </span>
+              <button
+                pButton
+                icon="pi pi-plus"
+                class="p-button-success"
+                [disabled]="!modelInitiated"
+              ></button>
+            </div>
+          </div>
+          <div class="p-field p-col-12 p-md-2 input-field">
+            <span class="p-float-label">
+              <p-inputNumber
+                type="text"
+                mode="decimal"
+                [minFractionDigits]="2"
+                [(ngModel)]="params.infection_radius"
+              ></p-inputNumber>
+              <label>Infection Radius</label>
+            </span>
+          </div>
+          <div class="p-field p-col-12 p-md-2 input-field">
+            <span class="p-float-label">
+              <p-inputNumber
+                type="text"
+                [(ngModel)]="params.location.num_hospitals"
+              ></p-inputNumber>
+              <label>Number of Hospitals</label>
+            </span>
+          </div>
+        </div>
+        <div class="p-fluid p-grid">
+          <div class="p-field p-col-12 p-md-2 input-field">
+            <span class="p-float-label">
+              <p-inputNumber
+                inputId="integeronly"
+                [(ngModel)]="params.num_days"
+                [disabled]="modelInitiated"
+              >
+              </p-inputNumber>
+              <label for="inputtext">Number of days</label>
+            </span>
+          </div>
+          <div class="p-field p-col-12 p-md-2 input-field">
+            <span class="p-float-label">
+              <p-inputNumber
+                type="text"
+                mode="decimal"
+                [minFractionDigits]="2"
+                [min]="0"
+                [max]="100"
+                [(ngModel)]="params.percentage_masked"
+              >
+              </p-inputNumber>
+              <label for="inputtext">Percentage of people masked</label>
+            </span>
+          </div>
+          <div class="p-field p-col-12 p-md-2 input-field">
+            <span class="p-float-label">
+              <p-inputNumber
+                type="text"
+                [(ngModel)]="params.location.num_empty"
+                [disabled]="modelInitiated"
+              ></p-inputNumber>
+              <label>Number of Empty Roads</label>
+            </span>
+          </div>
+        </div>
+        <div class="p-fluid p-grid input-field">
+          <div class="p-field p-col-12 p-md-1">
+            <p-button
+              label="Initialize"
+              (onClick)="initModel()"
+              [disabled]="modelInitiated"
+            ></p-button>
+          </div>
+          <div class="p-field p-col-12 p-md-1">
+            <p-button label="Update"></p-button>
+          </div>
+          <div class="p-field p-col-12 p-md-1">
+            <p-button
+              label="Terminate"
+              (onClick)="terminateModel()"
+              styleClass="p-button-secondary"
+            ></p-button>
+          </div>
+        </div>
+      </div>
+    </p-accordionTab>
+    <p-accordionTab header="Execution" [selected]="modelInitiated">
+      <div class="p-fluid p-grid">
+        <h4 style="margin-left: 5px">
+          Hour: {{ currentStep }}, Day = {{ day }}
+        </h4>
+      </div>
+      <div class="p-fluid p-grid">
+        <div class="p-field p-col-12 p-md-1">
+          <span class="p-buttonset">
+            <button
+              pButton
+              pRipple
+              icon="pi pi-fast-backward"
+              class="p-button-secondary p-button-text"
+              (click)="handlePlayPauseClick('FIRST')"
+            ></button>
+            <button
+              pButton
+              pRipple
+              icon="pi pi-angle-double-left"
+              class="p-button-secondary p-button-text"
+              (click)="handlePlayPauseClick('PREVIOUS')"
+            ></button>
+            <button
+              pButton
+              pRipple
+              icon="pi {{ onOff ? 'pi-pause' : 'pi-play' }}"
+              (click)="handlePlayPauseClick('PLAY_PAUSE')"
+            ></button>
+            <button
+              pButton
+              pRipple
+              icon="pi pi-angle-double-right"
+              class="p-button-secondary p-button-text"
+              (click)="handlePlayPauseClick('NEXT')"
+            ></button>
+            <button
+              pButton
+              pRipple
+              icon="pi pi-fast-forward"
+              class="p-button-secondary p-button-text"
+              (click)="handlePlayPauseClick('LATEST')"
+            ></button>
+          </span>
+        </div>
+      </div>
+      <div class="p-fluid p-grid">
+        <div
+          [ngStyle]="{
+            margin: '5px',
+            resize: 'both',
+            overflow: 'auto',
+            minWidth: '500px',
+            minHeight: '500px',
+            width: width,
+            height: height
+          }"
+        >
+          <p-chart
+            #scatterChart
+            type="scatter"
+            [data]="stepData"
+            [options]="scatterOptions"
+            width="100%"
+            height="100%"
+          >
+          </p-chart>
+        </div>
+        <div
+          [ngStyle]="{
+            margin: '5px',
+            resize: 'both',
+            overflow: 'auto',
+            minWidth: '500px',
+            minHeight: '500px',
+            width: width,
+            height: height
+          }"
+        >
+          <p-chart
+            #plotChart
+            type="line"
+            [data]="plotData"
+            [options]="plotOptions"
+            width="100%"
+            height="100%"
+          ></p-chart>
+        </div>
+      </div>
+    </p-accordionTab>
+  </p-accordion>
 </div>
