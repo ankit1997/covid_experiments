@@ -26,13 +26,13 @@ export class SimulationComponent implements OnInit {
     initial_infections: 20,
     percentage_masked: 50.0,
     location: {
-      num_houses: 120,
-      num_hospitals: 10,
-      num_empty: 270,
-      map_dimensions: '20 x 20',
+      num_houses: 14,
+      num_hospitals: 1,
+      num_empty: 85,
+      map_dimensions: '10 x 10',
       capacity: {
-        H: 10,
-        '+': 50,
+        H: 5,
+        '+': 10,
         O: 70,
       },
     },
@@ -40,6 +40,7 @@ export class SimulationComponent implements OnInit {
       prob_visit_hospital: [],
     },
     percentage_vaccinated: [10.0, 0.0],
+    social_distancing: false,
   };
 
   scatterOptions: any = {
@@ -62,12 +63,17 @@ export class SimulationComponent implements OnInit {
       enabled: false,
     },
     animation: {
-      duration: 2000,
+      duration: 1500,
     },
-    // onClick: (event: any, item: any) => {
-    //   console.log(event);
-    //   console.log(item);
-    // },
+    onClick: (event: any, item: any) => {
+      if (item && item[0] && item[0]._index >= 0) {
+        this.specialFocusAgents.push(item[0]._index);
+        this.showMessage(
+          true,
+          'Agent #' + (item[0]._index + 1) + ' is now being tracked'
+        );
+      }
+    },
   };
   plotOptions = {
     scales: {
@@ -230,7 +236,8 @@ export class SimulationComponent implements OnInit {
   day: number = 0;
   modelInitiated: boolean = false;
   simulationEnded: boolean = false;
-  history_limit: number = 10;
+  history_limit: number = 24;
+  specialFocusAgents: number[] = [];
 
   constructor(
     private backendService: BackendService,
@@ -274,6 +281,7 @@ export class SimulationComponent implements OnInit {
           this.modelInitiated = true;
         }
         this.blockedDocument = false;
+        this.specialFocusAgents = [];
       },
       (error) => {
         this.blockedDocument = false;
@@ -294,10 +302,7 @@ export class SimulationComponent implements OnInit {
         this.modelInitiated = false;
         this.blockedDocument = false;
         this.onOff = false;
-        this.currentStep = -1;
-        for (let dataset of this.plotData.datasets) {
-          dataset.data = [];
-        }
+        this.specialFocusAgents = [];
       });
   }
 
@@ -331,7 +336,7 @@ export class SimulationComponent implements OnInit {
     });
     this.stepData.datasets[0].pointStyle = data.home_loc_id.map(
       (h: number, i: number) => {
-        return h == data.current_loc_id[i] ? 'triangle' : 'circle';
+        return h == data.current_loc_id[i] ? 'rect' : 'circle';
       }
     );
     this.stepData.datasets[0].pointBackgroundColor = data.infection_status.map(
@@ -340,8 +345,14 @@ export class SimulationComponent implements OnInit {
       }
     );
     this.stepData.datasets[0].pointRadius = data.infection_status.map(
-      (i: string) => {
-        return this.backendService.getPointRadiusFromInfectionStatus(i);
+      (inf: string, i: number) => {
+        if (
+          this.specialFocusAgents.length > 0 &&
+          this.specialFocusAgents.filter((a: number) => a === i).length === 0
+        ) {
+          return 0;
+        }
+        return this.backendService.getPointRadiusFromInfectionStatus(inf);
       }
     );
     this.stepData.datasets[0].borderColor = data.infection_status.map(
@@ -578,6 +589,20 @@ export class SimulationComponent implements OnInit {
       num_blocks
     ) {
       return 'Invalid map dimension';
+    }
+    if (
+      this.params.percentage_vaccinated[0] +
+        this.params.percentage_vaccinated[1] >
+      100.0
+    ) {
+      return 'Invalid percentage of vaccinated population';
+    }
+    if (
+      this.params.percentage_vaccinated[0] > 100.0 ||
+      this.params.percentage_vaccinated[1] > 100.0 ||
+      this.params.percentage_masked > 100.0
+    ) {
+      return 'Invalid percentage parameter [0-100]';
     }
     return null;
   }

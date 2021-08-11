@@ -82,6 +82,12 @@
               <label>Number of Hospitals</label>
             </span>
           </div>
+          <div class="p-field p-col-12 p-md-2 input-field">
+            <p-button
+              label="Social Distancing: {{ params.social_distancing }}"
+              (onClick)="params.social_distancing = !params.social_distancing"
+            ></p-button>
+          </div>
         </div>
         <div class="p-fluid p-grid">
           <div class="p-field p-col-12 p-md-2 input-field">
@@ -165,6 +171,16 @@
             <p-button
               label="Terminate"
               (onClick)="terminateModel()"
+              styleClass="p-button-secondary"
+            ></p-button>
+          </div>
+          <div
+            class="p-field p-col-12 p-md-2"
+            *ngIf="specialFocusAgents.length > 0"
+          >
+            <p-button
+              label="Reset selected agents"
+              (onClick)="specialFocusAgents = []"
               styleClass="p-button-secondary"
             ></p-button>
           </div>

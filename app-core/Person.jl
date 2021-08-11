@@ -30,7 +30,7 @@ function move_person!(agent::Person, model::ABM, pos::NTuple{2,Float64})::Bool
 	new_loc.capacity -= 1
 	old_loc.capacity += 1
 
-	if new_loc.type == HOSPITAL && isempty(agent.upcoming_pos)
+	if new_loc.type === HOSPITAL && isempty(agent.upcoming_pos)
 		# Hospitalize agent
 		change_infection_status!(agent, model, HOSPITALIZED)
 	end
@@ -42,11 +42,17 @@ end
 function move_person!(agent::Person, model::ABM)
 
 	if !isempty(agent.upcoming_pos)
-		new_pos = popfirst!(agent.upcoming_pos)
+		new_pos = agent.upcoming_pos[1]
 		if (new_pos[1] === NaN)
 			println("Inside agent step, nan encountered")
 		end
-		move_person!(agent, model, new_pos)
+		new_loc = LocationMod.location_by_pos(new_pos, model.parameters)
+		if new_loc.capacity > 0 || new_loc.id === agent.current_loc_id || new_loc.id === agent.home_loc_id
+			popfirst!(agent.upcoming_pos)
+			move_person!(agent, model, new_pos)
+		elseif new_loc.capacity <= 0
+			move_person!(agent, model, random_pos_in_loc(LocationMod.location_by_pos(agent.pos, model.parameters)))
+		end
 	end
 
 end
@@ -131,12 +137,11 @@ function infection_dynamics!(agent::Person, model::ABM)
 			change_infection_status!(agent, model, DECEASED)
 		end
 	elseif is(agent, HOSPITALIZED) && ParametersMod.is(loc, HOSPITAL)
-		if (2 * num_steps_in_day) < agent.infection_status_duration < (7 * num_steps_in_day) && is_probable(0.3)
+		if ((4 * num_steps_in_day) < agent.infection_status_duration && is_probable(0.3))
 			change_infection_status!(agent, model, RECOVERED)
-			empty!(agent.upcoming_pos)
 			JourneyMod.plan_move_home!(agent, model)
 			PersonMod.move_person!(agent, model, 3)
-		elseif agent.infection_status_duration >= (7 * num_steps_in_day) && is_probable(0.2)
+		elseif agent.infection_status_duration >= (7 * num_steps_in_day) && is_probable(0.7)
 			change_infection_status!(agent, model, DECEASED)
 		end
 	elseif is(agent, RECOVERED)
@@ -157,7 +162,7 @@ function get_move_prob(agent::Person)::Float64
 	elseif agent.infection_status in (SEVERE,)
 		return 0.1
 	elseif agent.infection_status in (HOSPITALIZED,)
-		return 0.001
+		return 0.0001
 	end
 end
 

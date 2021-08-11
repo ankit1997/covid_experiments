@@ -108,7 +108,6 @@ function schedule_hospital_visit!(agent::Person, model::ABM)::Bool
 
 	return !is_agent_at_hospital && 
 			!is_agent_going_to_hospital && 
-			is_probable(model.parameters.prob_visit_hospital[agent.infection_status]) &&
 			plan_move_hospital!(agent, model)
 
 end

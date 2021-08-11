@@ -36,13 +36,16 @@ function agent_step!(agent::Person, model::ABM)
 
 	params = model.parameters
 
-	going_to_hospital = JourneyMod.schedule_hospital_visit!(agent, model)
+	going_to_hospital = false
 	is_hospitalized = is(agent, HOSPITALIZED)
+	if is_probable(model.parameters.prob_visit_hospital[agent.infection_status]) && !is_hospitalized
+		going_to_hospital = JourneyMod.schedule_hospital_visit!(agent, model)
+	end
 
-	if (params.step + 5) % params.num_steps_in_day === 0 && at_home(agent) && !is_hospitalized && !going_to_hospital
+	if (params.step + 5) % params.num_steps_in_day === 0 && !at_home(agent) && !is_hospitalized && !going_to_hospital
 		# At near the end of the day, return to home unless hospitalized
 
-		empty!(agent.upcoming_pos)
+		# empty!(agent.upcoming_pos)
 		JourneyMod.plan_move_home!(agent, model)
 
 	elseif isempty(agent.upcoming_pos) && !is_hospitalized
@@ -67,6 +70,8 @@ function agent_step!(agent::Person, model::ABM)
 end
 
 function model_step!(model::ABM)
+
+	ModelMod.social_distancing!(model)
 
 	for (a1, a2) in interacting_pairs(model, model.parameters.infection_radius, :nearest)
 		PersonMod.transmit!(a1, a2, model)
@@ -127,6 +132,8 @@ route("/init", method=POST) do
 		local model = ModelMod.get_model(model_name, params)
 		model_cache[model_name] = model
 	end
+
+	simulate_step!(model_cache[model_name])
 
 	update_semaphores[model_name] = Base.Semaphore(1)
 

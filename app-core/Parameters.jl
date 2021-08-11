@@ -102,6 +102,8 @@ mutable struct Parameters
     percentage_masked::Float64
     percentage_vaccinated::Array{Float64}
 
+    social_distancing::Bool
+
 end
 
 function loc_ind2id(ind::NTuple{2,Int64}, p::Parameters)::Int64
@@ -212,14 +214,14 @@ function _read_params(model_name::String, params::Dict)::Parameters
     locations = _init_locations(location_map, map_item_capacity)
 
     prob_visit_hospital = Dict()
-    prob_visit_hospital[:SUSCEPTIBLE] = 0.01
-    prob_visit_hospital[:MILD] = 0.2
+    prob_visit_hospital[:SUSCEPTIBLE] = 0.0001
+    prob_visit_hospital[:MILD] = 0.1
     prob_visit_hospital[:PRESYMPTOMATIC] = 0.01
-    prob_visit_hospital[:ASYMPTOMATIC] = 0.01
+    prob_visit_hospital[:ASYMPTOMATIC] = 0.001
     prob_visit_hospital[:INFECTED] = 0.4
     prob_visit_hospital[:SEVERE] = 0.8
     prob_visit_hospital[:HOSPITALIZED] = 0.0
-    prob_visit_hospital[:RECOVERED] = 0.01
+    prob_visit_hospital[:RECOVERED] = 0.0001
     prob_visit_hospital[:DECEASED] = 0.0
 
     prob_vaccinated_and_spread = (0.6, 0.2)
@@ -240,7 +242,8 @@ function _read_params(model_name::String, params::Dict)::Parameters
                             prob_visit_hospital, 
                             prob_vaccinated_and_spread, 
                             params["percentage_masked"],
-                            params["percentage_vaccinated"])
+                            params["percentage_vaccinated"],
+                            params["social_distancing"])
     _params_cache[model_name] = parameters
 
     return _params_cache[model_name]
@@ -252,6 +255,7 @@ function enrich_params!(model::ABM, attrs::Dict)
     parameters.infection_radius = get(attrs, "infection_radius", parameters.infection_radius)
     # parameters.prob_visit_hospital = get(attrs, "prob_visit_hospital", parameters.prob_visit_hospital)
     parameters.prob_vaccinated_and_spread = get(attrs, "prob_vaccinated_and_spread", Tuple(parameters.prob_vaccinated_and_spread))
+    parameters.social_distancing = get(attrs, "social_distancing", parameters.social_distancing)
     
 
     percentage_masked = Float64(get(attrs, "percentage_masked", parameters.percentage_masked))

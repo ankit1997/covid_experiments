@@ -70,9 +70,10 @@ export class BackendService {
 
   getBoxColorFromLocationType(locTypeSymbol: string) {
     if (locTypeSymbol == BackendService.EMPTY) return '#000000';
-    else if (locTypeSymbol == BackendService.HOUSE) return '#041DBB';
+    else if (locTypeSymbol == BackendService.HOUSE) return '#3A4BB1';
+    //041DBB
     // FFCCBC
-    else if (locTypeSymbol == BackendService.HOSPITAL) return '#445943';
+    else if (locTypeSymbol == BackendService.HOSPITAL) return '#74CB7C'; //445943
     return '#000000';
   }
 
@@ -95,13 +96,13 @@ export class BackendService {
   }
 
   getPointRadiusFromInfectionStatus(inf: string): number {
-    if (inf == BackendService.SUSCEPTIBLE) return 3;
-    if (inf == BackendService.ASYMPTOMATIC) return 4;
+    if (inf == BackendService.SUSCEPTIBLE) return 2;
+    if (inf == BackendService.ASYMPTOMATIC) return 3;
     if (inf == BackendService.MILD) return 4;
     if (inf == BackendService.INFECTED) return 5;
     if (inf == BackendService.SEVERE) return 5;
     if (inf == BackendService.HOSPITALIZED) return 2;
-    if (inf == BackendService.RECOVERED) return 3;
+    if (inf == BackendService.RECOVERED) return 2;
     if (inf == BackendService.DECEASED) return 1;
     return 3;
   }
@@ -113,7 +114,8 @@ export class BackendService {
   ): string {
     let color;
     if (masked) {
-      color = '#00ff76';
+      // color = '#00ff76';
+      color = this._getColorFromInfectionStatusHelper(inf);
     } else {
       color = '#000000';
     }
@@ -125,6 +127,9 @@ export class BackendService {
     masked: boolean,
     numVaccineShots: number
   ): number {
+    if (inf == BackendService.DECEASED) {
+      return 0;
+    }
     if (masked) {
       return 6 + numVaccineShots * 3;
     }
@@ -138,7 +143,7 @@ export class BackendService {
     if (inf == BackendService.INFECTED) return '#f51d6c';
     if (inf == BackendService.SEVERE) return '#E53935';
     if (inf == BackendService.HOSPITALIZED) return '#00ff76';
-    if (inf == BackendService.RECOVERED) return '#9E9E9E';
+    if (inf == BackendService.RECOVERED) return '#8B4513';
     if (inf == BackendService.DECEASED) return '#000000';
     return '#000000';
   }
