@@ -33,6 +33,7 @@ export class BackendService {
     BackendService.RECOVERED,
     BackendService.DECEASED,
   ];
+  public hiddenStates: Set<string> = new Set();
 
   constructor(private http: HttpClient) {}
 
@@ -68,9 +69,10 @@ export class BackendService {
   }
 
   getBoxColorFromLocationType(locTypeSymbol: string) {
-    if (locTypeSymbol == BackendService.EMPTY) return BackendService.WHITE;
-    else if (locTypeSymbol == BackendService.HOUSE) return '#FFCCBC';
-    else if (locTypeSymbol == BackendService.HOSPITAL) return '#81C784';
+    if (locTypeSymbol == BackendService.EMPTY) return '#000000';
+    else if (locTypeSymbol == BackendService.HOUSE) return '#041DBB';
+    // FFCCBC
+    else if (locTypeSymbol == BackendService.HOSPITAL) return '#445943';
     return '#000000';
   }
 
@@ -86,17 +88,58 @@ export class BackendService {
   }
 
   getColorFromInfectionStatus(inf: string) {
+    return (
+      this._getColorFromInfectionStatusHelper(inf) +
+      (this.hiddenStates.has(inf) ? '00' : 'ff')
+    );
+  }
+
+  getPointRadiusFromInfectionStatus(inf: string): number {
+    if (inf == BackendService.SUSCEPTIBLE) return 3;
+    if (inf == BackendService.ASYMPTOMATIC) return 4;
+    if (inf == BackendService.MILD) return 4;
+    if (inf == BackendService.INFECTED) return 5;
+    if (inf == BackendService.SEVERE) return 5;
+    if (inf == BackendService.HOSPITALIZED) return 2;
+    if (inf == BackendService.RECOVERED) return 3;
+    if (inf == BackendService.DECEASED) return 1;
+    return 3;
+  }
+
+  getPointBorderColor(
+    inf: string,
+    masked: boolean,
+    numVaccineShots: number
+  ): string {
+    let color;
+    if (masked) {
+      color = '#00ff76';
+    } else {
+      color = '#000000';
+    }
+    return color + (this.hiddenStates.has(inf) ? '00' : '33');
+  }
+
+  getPointBorderWidth(
+    inf: string,
+    masked: boolean,
+    numVaccineShots: number
+  ): number {
+    if (masked) {
+      return 6 + numVaccineShots * 3;
+    }
+    return 1;
+  }
+
+  private _getColorFromInfectionStatusHelper(inf: string) {
     if (inf == BackendService.SUSCEPTIBLE) return '#42A5F5';
-    if (inf == BackendService.ASYMPTOMATIC) return '#BA68C8';
-    if (
-      inf == BackendService.MILD ||
-      inf == BackendService.INFECTED ||
-      inf == BackendService.SEVERE
-    )
-      return '#E53935';
+    if (inf == BackendService.ASYMPTOMATIC) return '#f0ea4f';
+    if (inf == BackendService.MILD) return '#BA68C8';
+    if (inf == BackendService.INFECTED) return '#f51d6c';
+    if (inf == BackendService.SEVERE) return '#E53935';
     if (inf == BackendService.HOSPITALIZED) return '#00ff76';
     if (inf == BackendService.RECOVERED) return '#9E9E9E';
-    if (inf == BackendService.DECEASED) return '#00000000';
+    if (inf == BackendService.DECEASED) return '#000000';
     return '#000000';
   }
 }

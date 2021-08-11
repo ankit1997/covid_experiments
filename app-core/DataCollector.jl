@@ -16,6 +16,11 @@ function capture(model::ABM)::Dict
     # positions = transpose(hcat(positions...))
     data["positions"] = positions
 
+    # Vaccine shots
+    data["vaccination"] = _map(model.agents, (agent) -> agent.vaccine_shots)
+    # Mask
+    data["mask"] = _map(model.agents, (agent) -> agent.is_masked)
+
     # Infection status
     data["infection_status"] = _map(model.agents, (agent) -> string(agent.infection_status))
 

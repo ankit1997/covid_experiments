@@ -1,4 +1,5 @@
 <p-toast></p-toast>
+<p-blockUI [blocked]="blockedDocument"></p-blockUI>
 
 <div>
   <p-accordion [multiple]="true">
@@ -50,23 +51,15 @@
         </div>
         <div class="p-fluid p-grid">
           <div class="p-field p-col-12 p-md-2 input-field">
-            <div class="p-inputgroup">
-              <span class="p-float-label">
-                <p-inputNumber
-                  inputId="integeronly"
-                  [(ngModel)]="params.num_agents"
-                  [disabled]="modelInitiated"
-                >
-                </p-inputNumber>
-                <label>Number of agents</label>
-              </span>
-              <button
-                pButton
-                icon="pi pi-plus"
-                class="p-button-success"
-                [disabled]="!modelInitiated"
-              ></button>
-            </div>
+            <span class="p-float-label">
+              <p-inputNumber
+                inputId="integeronly"
+                [(ngModel)]="params.num_agents"
+                [disabled]="modelInitiated"
+              >
+              </p-inputNumber>
+              <label>Number of agents</label>
+            </span>
           </div>
           <div class="p-field p-col-12 p-md-2 input-field">
             <span class="p-float-label">
@@ -84,6 +77,7 @@
               <p-inputNumber
                 type="text"
                 [(ngModel)]="params.location.num_hospitals"
+                [disabled]="modelInitiated"
               ></p-inputNumber>
               <label>Number of Hospitals</label>
             </span>
@@ -125,6 +119,32 @@
               <label>Number of Empty Roads</label>
             </span>
           </div>
+          <div class="p-field p-col-12 p-md-2 input-field">
+            <span class="p-float-label">
+              <p-inputNumber
+                type="text"
+                mode="decimal"
+                [minFractionDigits]="2"
+                [min]="0"
+                [max]="100"
+                [(ngModel)]="params.percentage_vaccinated[0]"
+              ></p-inputNumber>
+              <label>Percentage Vaccinated Dose #1</label>
+            </span>
+          </div>
+          <div class="p-field p-col-12 p-md-2 input-field">
+            <span class="p-float-label">
+              <p-inputNumber
+                type="text"
+                mode="decimal"
+                [minFractionDigits]="2"
+                [min]="0"
+                [max]="100"
+                [(ngModel)]="params.percentage_vaccinated[1]"
+              ></p-inputNumber>
+              <label>Percentage Vaccinated Dose #2</label>
+            </span>
+          </div>
         </div>
         <div class="p-fluid p-grid input-field">
           <div class="p-field p-col-12 p-md-1">
@@ -135,7 +155,11 @@
             ></p-button>
           </div>
           <div class="p-field p-col-12 p-md-1">
-            <p-button label="Update"></p-button>
+            <p-button
+              label="Update"
+              (onClick)="updateModel()"
+              [disabled]="!modelInitiated"
+            ></p-button>
           </div>
           <div class="p-field p-col-12 p-md-1">
             <p-button
@@ -148,92 +172,98 @@
       </div>
     </p-accordionTab>
     <p-accordionTab header="Execution" [selected]="modelInitiated">
-      <div class="p-fluid p-grid">
-        <h4 style="margin-left: 5px">
-          Hour: {{ currentStep }}, Day = {{ day }}
-        </h4>
-      </div>
-      <div class="p-fluid p-grid">
-        <div class="p-field p-col-12 p-md-1">
-          <span class="p-buttonset">
-            <button
-              pButton
-              pRipple
-              icon="pi pi-fast-backward"
-              class="p-button-secondary p-button-text"
-              (click)="handlePlayPauseClick('FIRST')"
-            ></button>
-            <button
-              pButton
-              pRipple
-              icon="pi pi-angle-double-left"
-              class="p-button-secondary p-button-text"
-              (click)="handlePlayPauseClick('PREVIOUS')"
-            ></button>
-            <button
-              pButton
-              pRipple
-              icon="pi {{ onOff ? 'pi-pause' : 'pi-play' }}"
-              (click)="handlePlayPauseClick('PLAY_PAUSE')"
-            ></button>
-            <button
-              pButton
-              pRipple
-              icon="pi pi-angle-double-right"
-              class="p-button-secondary p-button-text"
-              (click)="handlePlayPauseClick('NEXT')"
-            ></button>
-            <button
-              pButton
-              pRipple
-              icon="pi pi-fast-forward"
-              class="p-button-secondary p-button-text"
-              (click)="handlePlayPauseClick('LATEST')"
-            ></button>
-          </span>
+      <div>
+        <div class="p-fluid p-grid">
+          <h4 style="margin-left: 5px">
+            Hour: {{ currentStep }}, Day = {{ day }}
+          </h4>
         </div>
-      </div>
-      <div class="p-fluid p-grid">
-        <div
-          [ngStyle]="{
-            margin: '5px',
-            resize: 'both',
-            overflow: 'auto',
-            minWidth: '500px',
-            minHeight: '500px',
-            width: width,
-            height: height
-          }"
-        >
-          <p-chart
-            #scatterChart
-            type="scatter"
-            [data]="stepData"
-            [options]="scatterOptions"
-            width="100%"
-            height="100%"
+        <div class="p-fluid p-grid" *ngIf="modelInitiated">
+          <div class="p-field p-col-4">
+            <span class="p-buttonset" style="min-width: 400px">
+              <button
+                pButton
+                pRipple
+                icon="pi pi-fast-backward"
+                class="p-button-secondary p-button-text"
+                (click)="handlePlayPauseClick('FIRST')"
+              ></button>
+              <button
+                pButton
+                pRipple
+                icon="pi pi-angle-double-left"
+                class="p-button-secondary p-button-text"
+                (click)="handlePlayPauseClick('PREVIOUS')"
+                pTooltip="Previous step"
+                tooltipPosition="bottom"
+              ></button>
+              <button
+                pButton
+                pRipple
+                label="{{ onOff ? 'Pause' : 'Play' }}"
+                (click)="handlePlayPauseClick('PLAY_PAUSE')"
+              ></button>
+              <button
+                pButton
+                pRipple
+                icon="pi pi-angle-double-right"
+                class="p-button-secondary p-button-text"
+                (click)="handlePlayPauseClick('NEXT')"
+                pTooltip="Next step"
+                tooltipPosition="bottom"
+              ></button>
+              <button
+                pButton
+                pRipple
+                icon="pi pi-fast-forward"
+                class="p-button-secondary p-button-text"
+                (click)="handlePlayPauseClick('LATEST')"
+              ></button>
+            </span>
+          </div>
+        </div>
+        <div class="p-fluid p-grid" *ngIf="modelInitiated">
+          <div
+            [ngStyle]="{
+              margin: '5px',
+              resize: 'both',
+              overflow: 'auto',
+              minWidth: '800px',
+              minHeight: '600px',
+              width: width,
+              height: height
+            }"
           >
-          </p-chart>
-        </div>
-        <div
-          [ngStyle]="{
-            margin: '5px',
-            resize: 'both',
-            overflow: 'auto',
-            minWidth: '500px',
-            minHeight: '500px',
-            width: width,
-            height: height
-          }"
-        >
-          <p-chart
-            #plotChart
-            type="line"
-            [data]="plotData"
-            [options]="plotOptions"
-            width="100%"
-            height="100%"
-          ></p-chart>
+            <p-chart
+              #scatterChart
+              type="scatter"
+              [data]="stepData"
+              [options]="scatterOptions"
+              width="100%"
+              height="100%"
+            >
+            </p-chart>
+          </div>
+          <div
+            [ngStyle]="{
+              margin: '5px',
+              resize: 'both',
+              overflow: 'auto',
+              minWidth: '800px',
+              minHeight: '500px',
+              width: width,
+              height: height
+            }"
+          >
+            <p-chart
+              #plotChart
+              type="line"
+              [data]="plotData"
+              [options]="plotOptions"
+              width="100%"
+              height="100%"
+            ></p-chart>
+          </div>
         </div>
       </div>
     </p-accordionTab>

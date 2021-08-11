@@ -100,6 +100,7 @@ mutable struct Parameters
 
     prob_vaccinated_and_spread::NTuple{2,Float64}
     percentage_masked::Float64
+    percentage_vaccinated::Array{Float64}
 
 end
 
@@ -196,6 +197,7 @@ function _read_params(model_name::String, params::Dict)::Parameters
     num_houses = params["location"]["num_houses"]
     num_hospitals = params["location"]["num_hospitals"]
     num_empty = params["location"]["num_empty"]
+    
 	location_map = Random.shuffle(reshape([fill(HOUSE, num_houses);  fill(HOSPITAL, num_hospitals); fill(EMPTY, num_empty)], Tuple(params["location"]["map_dimensions"])))
 	# For custom location map creation
 	# location_map = [
@@ -220,8 +222,25 @@ function _read_params(model_name::String, params::Dict)::Parameters
     prob_visit_hospital[:RECOVERED] = 0.01
     prob_visit_hospital[:DECEASED] = 0.0
 
-    parameters = Parameters(model_name, 0, 0, false, params["num_agents"], params["num_days"], params["num_steps_in_day"], params["infection_radius"], 
-                            params["initial_infections"], 100.0, 100.0, 2.0, 2.0, locations, location_map, map_item_capacity, prob_visit_hospital, (0.6, 0.2), params["percentage_masked"])
+    prob_vaccinated_and_spread = (0.6, 0.2)
+
+    parameters = Parameters(model_name, 
+                            0, 
+                            0, 
+                            false, 
+                            params["num_agents"], 
+                            params["num_days"], 
+                            params["num_steps_in_day"], 
+                            params["infection_radius"], 
+                            params["initial_infections"], 
+                            100.0, 100.0, 2.0, 2.0, 
+                            locations, 
+                            location_map, 
+                            map_item_capacity, 
+                            prob_visit_hospital, 
+                            prob_vaccinated_and_spread, 
+                            params["percentage_masked"],
+                            params["percentage_vaccinated"])
     _params_cache[model_name] = parameters
 
     return _params_cache[model_name]
@@ -235,30 +254,102 @@ function enrich_params!(model::ABM, attrs::Dict)
     parameters.prob_vaccinated_and_spread = get(attrs, "prob_vaccinated_and_spread", Tuple(parameters.prob_vaccinated_and_spread))
     
 
-    percentage_masked = get(attrs, "percentage_masked", 0.1)
-    if parameters.percentage_masked !== percentage_masked
+    percentage_masked = Float64(get(attrs, "percentage_masked", parameters.percentage_masked))
+    update_masked_agents!(model, percentage_masked)
+
+    percentage_vaccinated = get(attrs, "percentage_vaccinated", parameters.percentage_vaccinated)
+    percentage_vaccinated = float.(percentage_vaccinated)
+    update_vaccinated_agents!(model, percentage_vaccinated)
+
+end
+
+function update_masked_agents!(model::ABM, percentage_masked::Float64)
+    # Mask or unmask agents in the model based on the `percentage_masked` parameter which defines the percentage of 
+    # alive agents who are masked at any time.
+    
+    parameters = model.parameters
+
+    # Process logic only if the value has been changed than what is already set
+    if parameters.percentage_masked != percentage_masked
         
+        # Agents who are currently wearing mask when travelling outside
         masked_agents = [agent.id for (_, agent::Person) in model.agents if agent.is_masked && is_alive(agent)]
-        num_of_masked_new = clamp(ceil(Int64, (percentage_masked / 100.0) * parameters.num_agents), 1, length(model.agents))
+        println(length(masked_agents), " agents are already masked")
+        
+        # Number of agents who should be wearing mask according to `percentage_masked` parameter
+        num_of_masked_new = clamp(floor(Int64, (percentage_masked / 100.0) * parameters.num_agents), 1, length(model.agents))
+        println(num_of_masked_new, " agents should be masked as per policy")
 
         if length(masked_agents) > num_of_masked_new
-            # if percentage of masked people has decreased, unmask already masked agents
+            # If number of masked people is to be decreased, unmask already masked agents
+
+            # total number of agents to unmask
             diff = length(masked_agents) - num_of_masked_new
+
+            # Unmask `diff` number of agents randomly from masked agents set
             remove_mask = rand(masked_agents, diff)
             for id in remove_mask
                 model.agents[id].is_masked = false
             end
+            println("Removed masks from ", length(remove_mask), " agents")
+
         elseif length(masked_agents) < num_of_masked_new
-            # if percentage of masked people has increased, mask new agents who are not masked
+            # If number of masked people is to be increased, mask new agents who are not currently wearning mask
+
+            # total number of agents to mask
             diff = num_of_masked_new - length(masked_agents)
+
+            # Add masks to `diff` number of unmasked agents
             unmasked_agents = rand([agent.id for (_, agent::Person) in model.agents if !agent.is_masked && is_alive(agent)], diff)
             for id in unmasked_agents
                 model.agents[id].is_masked = true
             end
+            println("Put masks on ", length(unmasked_agents), " agents")
+
         end
+
+        # update the model params
+        parameters.percentage_masked = percentage_masked
 
     end
 
+end
+
+function update_vaccinated_agents!(model::ABM, percentage_vaccinated::Vector{Float64})
+    # Vaccinate agents based on `percentage_vaccinated` parameter which defines the percentage of population which should get vaccinated in total
+
+    parameters = model.parameters
+    n = parameters.num_agents
+
+    # Process logic only if the value has been changed than what is already set
+    if parameters.percentage_vaccinated != percentage_vaccinated
+
+        # number of agents which should get vaccinated (dose 1 and dose 2)
+        num_dose1 = floor(Int64, (percentage_vaccinated[1] / 100.0) * n)
+        num_dose2 = floor(Int64, (percentage_vaccinated[2] / 100.0) * n)
+
+        # agents w.r.t. number of vaccine shots they have received till now
+        vaccinated0 = [agent.id for (_, agent::Person) in model.agents if agent.vaccine_shots === 0 && is_alive(agent)]
+        vaccinated1 = [agent.id for (_, agent::Person) in model.agents if agent.vaccine_shots === 1 && is_alive(agent)]
+        vaccinated2 = [agent.id for (_, agent::Person) in model.agents if agent.vaccine_shots > 1 && is_alive(agent)]
+        
+        # vaccinate 1st dose
+        num_agents_to_vaccine1 = min(num_dose1 - length(vaccinated1) - length(vaccinated2), length(vaccinated0))
+        for i=1:num_agents_to_vaccine1
+            a = rand(vaccinated0)
+            model.agents[a].vaccine_shots = 1
+        end
+        println(num_agents_to_vaccine1, " agents were vaccinated with dose 1")
+        
+        # vaccinate 2nd dose
+        num_agents_to_vaccine2 = min(num_dose2 - length(vaccinated2), length(vaccinated1))
+        for i=1:num_agents_to_vaccine2
+            a = rand(vaccinated1)
+            model.agents[a].vaccine_shots = 2
+        end
+        println(num_agents_to_vaccine2, " agents were vaccinated with dose 2")
+
+    end
 end
 
 function model_params(model_name::String, params::Dict)::Parameters

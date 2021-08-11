@@ -63,9 +63,7 @@ function agent_step!(agent::Person, model::ABM)
 	PersonMod.move_person!(agent, model)
 
 	PersonMod.infection_dynamics!(agent, model)
-
-	PersonMod.handle_location_dynamics!(agent, model)
-
+	
 end
 
 function model_step!(model::ABM)
@@ -81,14 +79,14 @@ function model_step!(model::ABM)
 
 	infected_count = count(is_infected(agent) for (_, agent) in model.agents)
 	if infected_count == 0
-		println("Stopping early as infection spread stopped at step #", model.parameters.step)
 		model.parameters.stop_flag = true
 	end
 
 end
 
 function capture_data(model::ABM)::Dict
-	return DataCollectorMod.capture(model)
+	data = DataCollectorMod.capture(model)
+	return data
 end
 
 function simulate_step!(model::ABM)
@@ -117,7 +115,8 @@ route("/") do
 end
 
 route("/init", method=POST) do
-
+	# Initialize the model based on input parameters
+	
 	payload = JSON.parse(rawpayload())
 	params = payload["params"]
 	model_name = params["model_name"]
@@ -133,6 +132,7 @@ route("/init", method=POST) do
 
 	model = model_cache[model_name]
 	println("Models in cache: ", collect(keys(model_cache)))
+	println(model.parameters.map)
 	return get_response(true, "Model initialized successfully")
 end
 
@@ -188,16 +188,15 @@ route("/step") do
 end
 
 route("/update", method=POST) do
-	model_name = params(:model_name)
+
+	payload = JSON.parse(rawpayload())
+	params = payload["params"]
+	model_name = params["model_name"]
 
 	if !haskey(model_cache, model_name)
 		return get_response(false, "Model not initialized")
 	end
-
 	model = model_cache[model_name]::ABM
-
-	payload = JSON.parse(rawpayload())
-	params = payload["params"]
 
 	Base.acquire(update_semaphores[model_name])
 	ParametersMod.enrich_params!(model, params)

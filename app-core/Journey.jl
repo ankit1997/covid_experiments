@@ -7,7 +7,7 @@ using Agents:ABM
 
 function plan_cross_loc_move!(agent::Person, model::ABM, next_loc::Location)::Bool
 	# Plan journey of `agent` to `next_loc`
-	
+
 	if agent.current_loc_id === next_loc.id
 		# If agent is already at the destination location, then return
 		return false
@@ -17,15 +17,12 @@ function plan_cross_loc_move!(agent::Person, model::ABM, next_loc::Location)::Bo
 
 	current_loc = params.Locations[agent.current_loc_id]
 	
-	# Get all possible paths from current location to next location
-	paths = LocationMod.get_travel_path(current_loc, next_loc, params)
-	if length(paths) === 0
+	# Get a random path from current location to next location
+	path = LocationMod.get_travel_path(current_loc, next_loc, params)
+	if path === nothing
 		# If no possible path exists, then return
 		return false
 	end
-
-	# Select a random path from list of possible paths
-	path = rand(paths)
 	
 	old_pos = agent.pos
 	for loc_id in path

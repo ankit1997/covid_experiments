@@ -1,6 +1,7 @@
 import { Component, Input, ViewChild, OnInit } from '@angular/core';
 import { BackendService } from '../backend.service';
 import { MessageService } from 'primeng/api';
+// import { Chart } from 'chart.js';
 
 @Component({
   selector: 'app-simulation',
@@ -14,6 +15,7 @@ export class SimulationComponent implements OnInit {
   @ViewChild('scatterChart') scatterChart: any;
   @ViewChild('plotChart') plotChart: any;
 
+  blockedDocument: boolean = false;
   onOff: boolean = false;
   params: any = {
     model_name: 'Model-A',
@@ -22,21 +24,22 @@ export class SimulationComponent implements OnInit {
     num_steps_in_day: 24,
     infection_radius: 0.5,
     initial_infections: 20,
-    percentage_masked: 1.0,
+    percentage_masked: 50.0,
     location: {
-      num_houses: 34,
-      num_hospitals: 6,
-      num_empty: 60,
-      map_dimensions: '10 x 10',
+      num_houses: 120,
+      num_hospitals: 10,
+      num_empty: 270,
+      map_dimensions: '20 x 20',
       capacity: {
         H: 10,
         '+': 50,
-        O: 30,
+        O: 70,
       },
     },
     probabilities: {
       prob_visit_hospital: [],
     },
+    percentage_vaccinated: [10.0, 0.0],
   };
 
   scatterOptions: any = {
@@ -61,26 +64,49 @@ export class SimulationComponent implements OnInit {
     animation: {
       duration: 2000,
     },
-    onClick: (event: any, item: any) => {
-      console.log(event);
-      console.log(item);
-    },
+    // onClick: (event: any, item: any) => {
+    //   console.log(event);
+    //   console.log(item);
+    // },
   };
   plotOptions = {
     scales: {
       xAxes: [
         {
           display: true,
+          scaleLabel: {
+            display: true,
+            labelString: 'Hour',
+          },
         },
       ],
       yAxes: [
         {
           display: true,
+          scaleLabel: {
+            display: true,
+            labelString: '# of agents',
+          },
         },
       ],
     },
     tooltips: {
       enabled: false,
+    },
+    legend: {
+      onClick: (e: any, legendItem: any, legend: any) => {
+        if (this.backendService.hiddenStates.has(legendItem.text)) {
+          this.backendService.hiddenStates.delete(legendItem.text);
+        } else {
+          this.backendService.hiddenStates.add(legendItem.text);
+        }
+        // if (
+        //   Chart.defaults.global.legend &&
+        //   Chart.defaults.global.legend.onClick
+        // ) {
+        //   Chart.defaults.global.legend.onClick(e, legendItem);
+        // }
+      },
     },
   };
   loading: boolean = false;
@@ -96,6 +122,7 @@ export class SimulationComponent implements OnInit {
     ],
   };
   stepDataHistory: any[] = [];
+  plotDataMaxVal: any = -1;
   plotData: any = {
     labels: [],
     datasets: [
@@ -104,6 +131,17 @@ export class SimulationComponent implements OnInit {
         data: [],
         borderColor: this.backendService.getColorFromInfectionStatus(
           BackendService.SUSCEPTIBLE
+        ),
+        pointRadius: 0,
+        cubicInterpolationMode: 'monotone',
+        tension: 0.4,
+        borderWidth: 2,
+      },
+      {
+        label: BackendService.ASYMPTOMATIC,
+        data: [],
+        borderColor: this.backendService.getColorFromInfectionStatus(
+          BackendService.ASYMPTOMATIC
         ),
         pointRadius: 0,
         cubicInterpolationMode: 'monotone',
@@ -185,13 +223,14 @@ export class SimulationComponent implements OnInit {
       },
     ],
   };
-  currentStep: number = 0;
+  currentStep: number = -1;
   latestStep: number = 0;
   numSteps: number = 0;
   step: number = -1;
   day: number = 0;
   modelInitiated: boolean = false;
   simulationEnded: boolean = false;
+  history_limit: number = 10;
 
   constructor(
     private backendService: BackendService,
@@ -212,31 +251,40 @@ export class SimulationComponent implements OnInit {
         this.stepModel();
         this.currentStep += 1;
       }
-    }, 400);
+    }, 300);
   }
 
   initModel() {
     const validationError = this.validateParams();
     if (validationError != null) {
       this.showMessage(false, validationError);
+      return;
     }
     let params = this.formatParams();
     let payload = {
       params: params,
     };
-    this.backendService.initModel(payload).subscribe((result) => {
-      this.showMessage(result.success, result.message);
-      if (result.success) {
-        this.getWorldMap();
-        this.numSteps = this.params.num_days * this.params.num_steps_in_day;
-        this.modelInitiated = true;
-        this.onOff = true;
+    this.blockedDocument = true;
+    this.backendService.initModel(payload).subscribe(
+      (result) => {
+        this.showMessage(result.success, result.message);
+        if (result.success) {
+          this.getWorldMap();
+          this.numSteps = this.params.num_days * this.params.num_steps_in_day;
+          this.modelInitiated = true;
+        }
+        this.blockedDocument = false;
+      },
+      (error) => {
+        this.blockedDocument = false;
+        console.log(error);
       }
-    });
+    );
   }
 
   terminateModel() {
     // Terminate the model with name as set in the input field
+    this.blockedDocument = true;
     this.backendService
       .terminateModel(this.params.model_name)
       .subscribe((result) => {
@@ -244,6 +292,24 @@ export class SimulationComponent implements OnInit {
         // after termination of model, clear the history
         this.stepDataHistory = [];
         this.modelInitiated = false;
+        this.blockedDocument = false;
+        this.onOff = false;
+        this.currentStep = -1;
+        for (let dataset of this.plotData.datasets) {
+          dataset.data = [];
+        }
+      });
+  }
+
+  updateModel() {
+    let params = this.formatParams();
+    let payload = {
+      params: params,
+    };
+    this.backendService
+      .updateModel(this.params.model_name, payload)
+      .subscribe((result: any) => {
+        console.log(result);
       });
   }
 
@@ -265,7 +331,7 @@ export class SimulationComponent implements OnInit {
     });
     this.stepData.datasets[0].pointStyle = data.home_loc_id.map(
       (h: number, i: number) => {
-        return h == data.current_loc_id[i] ? 'triangle' : 'rect';
+        return h == data.current_loc_id[i] ? 'triangle' : 'circle';
       }
     );
     this.stepData.datasets[0].pointBackgroundColor = data.infection_status.map(
@@ -273,7 +339,29 @@ export class SimulationComponent implements OnInit {
         return this.backendService.getColorFromInfectionStatus(i);
       }
     );
-    this.stepData.datasets[0].pointRadius = 3;
+    this.stepData.datasets[0].pointRadius = data.infection_status.map(
+      (i: string) => {
+        return this.backendService.getPointRadiusFromInfectionStatus(i);
+      }
+    );
+    this.stepData.datasets[0].borderColor = data.infection_status.map(
+      (inf: string, i: number) => {
+        return this.backendService.getPointBorderColor(
+          inf,
+          data.mask[i],
+          data.vaccination[i]
+        );
+      }
+    );
+    this.stepData.datasets[0].borderWidth = data.infection_status.map(
+      (inf: string, i: number) => {
+        return this.backendService.getPointBorderWidth(
+          inf,
+          data.mask[i],
+          data.vaccination[i]
+        );
+      }
+    );
   }
 
   stepModel() {
@@ -302,6 +390,22 @@ export class SimulationComponent implements OnInit {
           this.latestStep = result.step;
           this.day = Number.parseFloat((this.currentStep / 24).toPrecision(3));
           this.stepDataHistory[this.currentStep] = result;
+          if (
+            this.latestStep - this.history_limit in this.stepDataHistory &&
+            this.stepDataHistory[this.latestStep - this.history_limit] !==
+              undefined
+          ) {
+            for (
+              let i = this.latestStep - this.history_limit - 1;
+              i >= 0;
+              i--
+            ) {
+              if (this.stepDataHistory[i] === undefined) {
+                break;
+              }
+              this.stepDataHistory[i] = undefined;
+            }
+          }
           this.drawAgents(JSON.parse(JSON.stringify(result)));
           // const diffTime = new Date().getTime() - startTime;
           // const wait = diffTime < 500 ? 500 - diffTime : 10;
@@ -312,30 +416,40 @@ export class SimulationComponent implements OnInit {
       });
   }
 
-  drawStatsPlot(data: any) {
-    let num = 0;
-    for (let dataset of this.plotData.datasets) {
-      let state = dataset.label;
-      let value = data.count[state] ? data.count[state] : 0;
-      dataset.data.push(value);
-      num = dataset.data.length;
+  drawStatsPlot(data: any, latest: boolean) {
+    if (latest) {
+      let num = 0;
+      for (let dataset of this.plotData.datasets) {
+        if (dataset.label === 'Step') {
+          continue;
+        }
+        let state = dataset.label;
+        let value = data.count[state] ? data.count[state] : 0;
+        this.plotDataMaxVal = Math.max(this.plotDataMaxVal, value);
+        dataset.data.push(value);
+        dataset.borderColor = this.backendService.getColorFromInfectionStatus(
+          dataset.label
+        );
+        if (
+          dataset.borderColor.length === 9 &&
+          dataset.borderColor.endsWith('00')
+        ) {
+          dataset.backgroundColor = '#00000000';
+        } else {
+          dataset.backgroundColor = '#01010101';
+        }
+        num = dataset.data.length;
+      }
+      this.plotData.labels = [...Array(num + 5).keys()];
+      this.plotChart.chart.update();
     }
-    this.plotData.labels = [...Array(num).keys()];
+    // Draw vertical line specifying step
+    this.plotData.datasets[this.plotData.datasets.length - 1].data = [
+      { x: data.step, y: 0 },
+      { x: data.step, y: this.plotDataMaxVal + 20 },
+    ];
     this.plotChart.chart.update();
   }
-
-  // setStatsData() {
-  //   if (this.data['model_stats']) {
-  //     this.plotData.labels = [...Array(this.data['stop']).keys()];
-  //     for (let i = 0; i <= 4; i++) {
-  //       this.plotData.datasets[i].data = this.data['model_stats']
-  //         .slice(0, this.data['stop'])
-  //         .map((val: number[]) => val[i]);
-  //     }
-  //     ``;
-  //     this.plotChart.chart.update();
-  //   }
-  // }
 
   drawWorldMap(locations: any[]) {
     const xMin = Math.min(...locations.map((loc) => loc['x_min']));
@@ -380,9 +494,7 @@ export class SimulationComponent implements OnInit {
         backgroundColor: this.backendService.getBoxColorFromLocationType(
           loc.type
         ),
-        borderColor: this.backendService.getBoxBorderColorFromLocationType(
-          loc.type
-        ),
+        borderColor: BackendService.BLACK,
         pointRadius: 0,
         borderWidth: 1,
         lineTension: 0, // This makes the lines straight instead of curvy
@@ -397,13 +509,18 @@ export class SimulationComponent implements OnInit {
   drawAgents(data: any, step?: number) {
     let dataToLoad = data;
     if (step && step in this.stepDataHistory) {
-      dataToLoad = this.stepDataHistory[step];
-      this.loadAgentData(dataToLoad);
-      this.scatterChart.chart.update();
+      if (this.stepDataHistory[step] === undefined) {
+        this.drawStatsPlot({ step: step }, false);
+      } else {
+        dataToLoad = this.stepDataHistory[step];
+        this.loadAgentData(dataToLoad);
+        this.drawStatsPlot(dataToLoad, false);
+        this.scatterChart.chart.update();
+      }
     } else {
       this.loadAgentData(dataToLoad);
+      this.drawStatsPlot(dataToLoad, true);
       this.scatterChart.chart.update();
-      this.drawStatsPlot(dataToLoad);
       this.currentStep += 1;
     }
   }
@@ -425,7 +542,7 @@ export class SimulationComponent implements OnInit {
       this.stepModel();
     } else if ($event === 'FIRST') {
       this.onOff = false;
-      this.currentStep = 1;
+      this.currentStep = Math.max(1, this.currentStep - this.history_limit);
       this.stepModel();
     }
   }

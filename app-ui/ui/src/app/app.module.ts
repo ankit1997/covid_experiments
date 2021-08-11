@@ -19,6 +19,8 @@ import { InputMaskModule } from 'primeng/inputmask';
 import { ToggleButtonModule } from 'primeng/togglebutton';
 import { ToastModule } from 'primeng/toast';
 import { OverlayPanelModule } from 'primeng/overlaypanel';
+import { TooltipModule } from 'primeng/tooltip';
+import { BlockUIModule } from 'primeng/blockui';
 
 @NgModule({
   declarations: [AppComponent, SimulationComponent, ParamsComponent],
@@ -35,6 +37,8 @@ import { OverlayPanelModule } from 'primeng/overlaypanel';
     ToastModule,
     OverlayPanelModule,
     ToggleButtonModule,
+    TooltipModule,
+    BlockUIModule,
     HttpClientModule,
     BrowserAnimationsModule,
     FormsModule,

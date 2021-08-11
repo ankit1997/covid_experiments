@@ -71,7 +71,11 @@ function transmit!(a1::Person, a2::Person, model::ABM)
 	can_interact = at_location(a1, a2.current_loc_id) || (at_location(a1, EMPTY, params) && at_location(a2, EMPTY, params))
 
 	if is_probable(prob_infection_spread) && can_interact
-		change_infection_status!(healthy, model, MILD)
+		if infected.is_asymptomatic
+			change_infection_status!(healthy, model, ASYMPTOMATIC)
+		else
+			change_infection_status!(healthy, model, MILD)
+		end
 	end
 
 end
@@ -102,13 +106,15 @@ end
 function infection_dynamics!(agent::Person, model::ABM)
 
 	_days_passed_in_stage(a::Person, d::Int64)::Bool = (a.infection_status_duration / model.parameters.num_steps_in_day) >= d
+	loc = model.parameters.Locations[agent.current_loc_id]::Location
+	num_steps_in_day = model.parameters.num_steps_in_day
 
 	if is(agent, SUSCEPTIBLE)
 		# do nothing for susceptible agent
 		nothing
 	elseif is(agent, MILD)
-		if _days_passed_in_stage(agent, 4)
-			new_state = is_probable(rand()) ? INFECTED : SUSCEPTIBLE
+		if _days_passed_in_stage(agent, 2)
+			new_state = is_probable(rand()) ? INFECTED : SEVERE
 			change_infection_status!(agent, model, new_state)
 		end
 	elseif is(agent, PRESYMPTOMATIC)
@@ -116,7 +122,7 @@ function infection_dynamics!(agent::Person, model::ABM)
 	elseif is(agent, ASYMPTOMATIC)
 		nothing
 	elseif is(agent, INFECTED)
-		if _days_passed_in_stage(agent, 4)
+		if _days_passed_in_stage(agent, 2)
 			new_state = is_probable(0.6) ? SEVERE : RECOVERED
 			change_infection_status!(agent, model, new_state)
 		end
@@ -124,38 +130,20 @@ function infection_dynamics!(agent::Person, model::ABM)
 		if _days_passed_in_stage(agent, 5) && is_probable(0.7)
 			change_infection_status!(agent, model, DECEASED)
 		end
-	# elseif is(agent, HOSPITALIZED)
-	# 	if _days_passed_in_stage(agent, 4)
-	# 		new_state = is_probable(rand()) ? DECEASED : RECOVERED
-	# 		change_infection_status!(agent, model, new_state)
-	# 	end
+	elseif is(agent, HOSPITALIZED) && ParametersMod.is(loc, HOSPITAL)
+		if (2 * num_steps_in_day) < agent.infection_status_duration < (7 * num_steps_in_day) && is_probable(0.3)
+			change_infection_status!(agent, model, RECOVERED)
+			empty!(agent.upcoming_pos)
+			JourneyMod.plan_move_home!(agent, model)
+			PersonMod.move_person!(agent, model, 3)
+		elseif agent.infection_status_duration >= (7 * num_steps_in_day) && is_probable(0.2)
+			change_infection_status!(agent, model, DECEASED)
+		end
 	elseif is(agent, RECOVERED)
 		nothing
 	end
 
 	agent.infection_status_duration += 1
-
-end
-
-function handle_location_dynamics!(agent::Person, model::ABM)
-
-	params = model.parameters
-	loc = params.Locations[agent.current_loc_id]
-
-	if is(agent, HOSPITALIZED) && is(loc, HOSPITAL)
-		# if agent is at the hospital
-		if (2 * params.num_steps_in_day) < agent.infection_status_duration < (7 * params.num_steps_in_day) && is_probable(0.3)
-			change_infection_status!(agent, model, RECOVERED)
-			empty!(agent.upcoming_pos)
-			JourneyMod.plan_move_home!(agent, model)
-			PersonMod.move_person!(agent, model, 3)
-
-		elseif agent.infection_status_duration >= (7 * params.num_steps_in_day) && is_probable(0.2)
-			change_infection_status!(agent, model, DECEASED)
-
-		end
-
-	end
 
 end
 
