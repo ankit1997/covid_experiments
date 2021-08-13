@@ -342,12 +342,12 @@ export class SimulationComponent implements OnInit {
     this.backendService
       .worldMap(this.params.model_name)
       .subscribe((result: any) => {
-        this.blockedDocument = false;
         if (result && result.length > 0) {
           this.drawWorldMap(result);
           this.handlePlayPauseClick('NEXT');
         } else {
           this.showMessage(false, 'Unexpected error, check server logs.');
+          this.blockedDocument = false;
         }
       });
   }
@@ -412,6 +412,7 @@ export class SimulationComponent implements OnInit {
     this.backendService
       .step(this.params.model_name)
       .subscribe((result: any) => {
+        this.blockedDocument = false;
         if (result.success === false && result.message === 'END') {
           this.simulationEnded = true;
           this.showMessage(true, 'Simulation completed');
