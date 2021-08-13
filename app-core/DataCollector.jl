@@ -2,6 +2,7 @@ module DataCollectorMod
 
 using Agents:ABM
 using ..ParametersMod:Parameters,Person
+using ..LocationMod
 
 function capture(model::ABM)::Dict
 
@@ -26,7 +27,7 @@ function capture(model::ABM)::Dict
 
     # Locations
     data["home_loc_id"] = _map(model.agents, (agent) -> agent.home_loc_id)
-    data["current_loc_id"] = _map(model.agents, (agent) -> agent.current_loc_id)
+    data["current_loc_id"] = _map(model.agents, (agent) -> LocationMod.location_by_pos(agent.pos, params).id)
 
     # Counts
     data["count"] = Dict{Symbol,Int64}()

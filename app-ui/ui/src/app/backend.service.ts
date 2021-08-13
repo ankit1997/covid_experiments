@@ -64,8 +64,13 @@ export class BackendService {
     return this.http.get('http://localhost:8082/map', { params: params });
   }
 
-  reloadData(): Observable<any> {
-    return this.http.get('http://localhost:8082/get');
+  downloadModelData(
+    modelName: string,
+    startStep: string,
+    endStep: string
+  ): Observable<any> {
+    let params = { model_name: modelName, start: startStep, end: endStep };
+    return this.http.get('http://localhost:8082/data', { params: params });
   }
 
   getBoxColorFromLocationType(locTypeSymbol: string) {

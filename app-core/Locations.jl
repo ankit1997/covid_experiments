@@ -1,11 +1,11 @@
 module LocationMod
 
-using ..ParametersMod:Location,Parameters,loc_id2ind,loc_ind2id,EMPTY
+using ..ParametersMod:Location,Person,Parameters,loc_id2ind,loc_ind2id,EMPTY
 using ..UtilsMod
 
 using Random:shuffle
 
-export random_pos_in_loc
+export random_pos_in_loc,get_current_loc
 
 E = 0.001
 
@@ -30,12 +30,16 @@ function location_by_pos(pos::NTuple{2,Float64}, p::Parameters)
 	ROWS, COLUMNS = size(p.map)
 
 	col = ceil(Int64, pos[1] / p.loc_width)
-	# row = ROWS + 1 - ceil(Int64, pos[2] / p.loc_height)
 	row = ceil(Int64, pos[2] / p.loc_height)
 	id = (row - 1) * COLUMNS + col
 	
 	return p.Locations[id]
 
+end
+
+function get_current_loc(agent::Person, p::Parameters)
+    pos = isempty(agent.upcoming_pos) ? agent.pos : last(agent.upcoming_pos)
+    return location_by_pos(pos, p)
 end
 
 function random_pos_in_loc(loc::Location)::NTuple{2,Float64}
@@ -55,7 +59,7 @@ function find_path(start_ind::NTuple{2,Int64}, end_ind::NTuple{2,Int64}, params:
 	visited = fill(false, size(params.map))
 	visited[start_ind...] = true
 
-	previous = fill((-1,-1), size(params.map))
+	previous = fill((-1, -1), size(params.map))
 	dr = [-1, 1, 0, 0]
 	dc = [0, 0, 1, -1]
 
@@ -156,7 +160,7 @@ end
 
 # end
 
-function interpolate_steps!(old::NTuple{2,Float64}, new::NTuple{2,Float64}, new_loc::Location, n::Int64)::Array{NTuple{2,Float64}}
+function interpolate_steps(old::NTuple{2,Float64}, new::NTuple{2,Float64}, new_loc::Location, n::Int64)::Array{NTuple{2,Float64}}
 
     interpolated_steps = []
 	oldX, oldY = old

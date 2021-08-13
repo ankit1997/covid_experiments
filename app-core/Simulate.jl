@@ -16,8 +16,9 @@ using .JourneyMod
 using .UtilsMod
 using .ParametersMod
 using .ModelMod
-using .DataCollectorMod
 using .LocationMod
+using .DataCollectorMod
+using Dates
 
 Genie.config.run_as_server = true
 Genie.config.cors_headers["Access-Control-Allow-Origin"] = "http://localhost:4200"
@@ -42,16 +43,18 @@ function agent_step!(agent::Person, model::ABM)
 		going_to_hospital = JourneyMod.schedule_hospital_visit!(agent, model)
 	end
 
-	if (params.step + 5) % params.num_steps_in_day === 0 && !at_home(agent) && !is_hospitalized && !going_to_hospital
+	at_home = agent.home_loc_id === LocationMod.location_by_pos(agent.pos, params).id
+
+	if (params.step + 5) % params.num_steps_in_day === 0 && !at_home && !is_hospitalized && !going_to_hospital
 		# At near the end of the day, return to home unless hospitalized
 
-		# empty!(agent.upcoming_pos)
 		JourneyMod.plan_move_home!(agent, model)
 
 	elseif isempty(agent.upcoming_pos) && !is_hospitalized
 
-		local_move_prob = params.Locations[agent.current_loc_id].prob_move_in_same_loc
-		outside_move_prob = params.Locations[agent.current_loc_id].prob_move_to_diff_loc
+		current_loc_id = LocationMod.location_by_pos(agent.pos, params).id
+		local_move_prob = params.Locations[current_loc_id].prob_move_in_same_loc
+		outside_move_prob = params.Locations[current_loc_id].prob_move_to_diff_loc
 
 		if is_probable(local_move_prob * PersonMod.get_move_prob(agent))
 			# roam around in same location
@@ -71,7 +74,7 @@ end
 
 function model_step!(model::ABM)
 
-	ModelMod.social_distancing!(model)
+	# ModelMod.social_distancing!(model)
 
 	for (a1, a2) in interacting_pairs(model, model.parameters.infection_radius, :nearest)
 		PersonMod.transmit!(a1, a2, model)
@@ -91,6 +94,18 @@ end
 
 function capture_data(model::ABM)::Dict
 	data = DataCollectorMod.capture(model)
+
+	fname = "output/" * model.parameters.name * ".txt"
+	if !isfile(fname)
+		if !isdir("output")
+			mkdir("output")
+		end
+		touch(fname)
+	end
+	open(fname, "a") do io
+		write(io, JSON.json(data) * "\n")
+	end
+
 	return data
 end
 
@@ -103,10 +118,9 @@ function simulate_step!(model::ABM)
 end
 
 function simulate_steps!(model::ABM, n::Int64)
-	println("Running x", n, " simulations...")
-	data = []
-	for i = 1:n
-		push!(data, simulate_step!(model))
+	data = Dict()
+	for _ = 1:n
+		data = simulate_step!(model)
 	end
 	return data
 end
@@ -125,21 +139,21 @@ route("/init", method=POST) do
 	payload = JSON.parse(rawpayload())
 	params = payload["params"]
 	model_name = params["model_name"]
-	
-	if haskey(model_cache, model_name)
+	fname = "output/" * model_name * ".txt"
+
+	if haskey(model_cache, model_name) || isfile(fname)
 		return get_response(false, "Model name already exists, use a different name or terminate the model")
 	else
 		local model = ModelMod.get_model(model_name, params)
 		model_cache[model_name] = model
 	end
-
-	simulate_step!(model_cache[model_name])
-
+	
 	update_semaphores[model_name] = Base.Semaphore(1)
 
 	model = model_cache[model_name]
 	println("Models in cache: ", collect(keys(model_cache)))
-	println(model.parameters.map)
+	display(model.parameters.map)
+	println("")
 	return get_response(true, "Model initialized successfully")
 end
 
@@ -187,7 +201,7 @@ route("/step") do
 	end
 
 	Base.acquire(update_semaphores[model_name])
-	response = JSON.json(simulate_step!(model))
+	response = JSON.json(simulate_steps!(model, model.parameters.step_size))
 	Base.release(update_semaphores[model_name])
 
 	return response
@@ -211,6 +225,30 @@ route("/update", method=POST) do
 
 	return get_response(true, "Model updated successfully")
 
+end
+
+route("/data") do
+	model_name = params(:model_name)
+	start_step = parse(Int64, params(:start, 1))
+	end_step = parse(Int64, params(:end, -1))
+
+	fname = "output/" * model_name * ".txt"
+	data = []
+	open(fname, "r") do io
+		raw = strip(read(io, String))
+		jsons = split(raw, "\n")
+		end_step = end_step == -1 ? length(jsons) : end_step
+		for i = start_step:end_step
+			try
+				push!(data, JSON.parse(jsons[i]))
+			catch e
+				println("Failed JSON.parse at ", i)
+			end
+		end
+	end
+
+	return JSON.json(data)
+	
 end
 
 up(8082, async=false)

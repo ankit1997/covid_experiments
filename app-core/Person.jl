@@ -14,7 +14,7 @@ function move_person!(agent::Person, model::ABM, pos::NTuple{2,Float64})::Bool
 	params = model.parameters
 
 	# Get old/current location
-	old_loc = params.Locations[agent.current_loc_id]
+	old_loc = get_current_loc(agent, params)
 
 	# Get new location
 	new_loc = LocationMod.location_by_pos(pos, params)
@@ -25,7 +25,6 @@ function move_person!(agent::Person, model::ABM, pos::NTuple{2,Float64})::Bool
 
 	# Move agent to new location
 	move_agent!(agent, pos, model)
-	agent.current_loc_id = new_loc.id
 
 	new_loc.capacity -= 1
 	old_loc.capacity += 1
@@ -42,17 +41,20 @@ end
 function move_person!(agent::Person, model::ABM)
 
 	if !isempty(agent.upcoming_pos)
+
+		params = model.parameters
+		current_loc = LocationMod.location_by_pos(agent.pos, params)
+		
 		new_pos = agent.upcoming_pos[1]
-		if (new_pos[1] === NaN)
-			println("Inside agent step, nan encountered")
-		end
-		new_loc = LocationMod.location_by_pos(new_pos, model.parameters)
-		if new_loc.capacity > 0 || new_loc.id === agent.current_loc_id || new_loc.id === agent.home_loc_id
+		new_loc = LocationMod.location_by_pos(new_pos, params)
+		
+		if new_loc.type === EMPTY || new_loc.capacity > 0 || new_loc.id === current_loc.id || new_loc.id === agent.home_loc_id
 			popfirst!(agent.upcoming_pos)
 			move_person!(agent, model, new_pos)
-		elseif new_loc.capacity <= 0
-			move_person!(agent, model, random_pos_in_loc(LocationMod.location_by_pos(agent.pos, model.parameters)))
+		else
+			move_person!(agent, model, random_pos_in_loc(LocationMod.location_by_pos(agent.pos, params)))
 		end
+
 	end
 
 end
@@ -74,7 +76,11 @@ function transmit!(a1::Person, a2::Person, model::ABM)
 	
     infected, healthy = is_infected(a1) ? (a1, a2) : (a2, a1)
 	prob_infection_spread = _get_prob_of_spread(infected, healthy, params)
-	can_interact = at_location(a1, a2.current_loc_id) || (at_location(a1, EMPTY, params) && at_location(a2, EMPTY, params))
+
+	loc1 = LocationMod.location_by_pos(a1.pos, params)
+	loc2 = LocationMod.location_by_pos(a2.pos, params)
+
+	can_interact = loc1.id === loc2.id || (loc1.type === loc2.type === EMPTY)
 
 	if is_probable(prob_infection_spread) && can_interact
 		if infected.is_asymptomatic
@@ -99,7 +105,8 @@ function change_infection_status!(agent::Person, model::ABM, status::Symbol)
 		elseif is(agent, DECEASED)
 			# Agent is deceased :(
 			empty!(agent.upcoming_pos)
-			model.parameters.Locations[agent.current_loc_id].capacity += 1
+			loc = LocationMod.location_by_pos(agent.pos, model.parameters)
+			loc.capacity += 1
 		elseif is(agent, RECOVERED)
 			# Agent recovered from hospital
 			empty!(agent.upcoming_pos)
@@ -112,7 +119,7 @@ end
 function infection_dynamics!(agent::Person, model::ABM)
 
 	_days_passed_in_stage(a::Person, d::Int64)::Bool = (a.infection_status_duration / model.parameters.num_steps_in_day) >= d
-	loc = model.parameters.Locations[agent.current_loc_id]::Location
+	loc = LocationMod.location_by_pos(agent.pos, model.parameters)
 	num_steps_in_day = model.parameters.num_steps_in_day
 
 	if is(agent, SUSCEPTIBLE)
@@ -126,7 +133,9 @@ function infection_dynamics!(agent::Person, model::ABM)
 	elseif is(agent, PRESYMPTOMATIC)
 		nothing
 	elseif is(agent, ASYMPTOMATIC)
-		nothing
+		if _days_passed_in_stage(agent, 5)
+			change_infection_status!(agent, model, SUSCEPTIBLE)
+		end
 	elseif is(agent, INFECTED)
 		if _days_passed_in_stage(agent, 2)
 			new_state = is_probable(0.6) ? SEVERE : RECOVERED
@@ -140,7 +149,6 @@ function infection_dynamics!(agent::Person, model::ABM)
 		if ((4 * num_steps_in_day) < agent.infection_status_duration && is_probable(0.3))
 			change_infection_status!(agent, model, RECOVERED)
 			JourneyMod.plan_move_home!(agent, model)
-			PersonMod.move_person!(agent, model, 3)
 		elseif agent.infection_status_duration >= (7 * num_steps_in_day) && is_probable(0.7)
 			change_infection_status!(agent, model, DECEASED)
 		end

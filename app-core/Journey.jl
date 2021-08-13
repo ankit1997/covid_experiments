@@ -8,36 +8,31 @@ using Agents:ABM
 function plan_cross_loc_move!(agent::Person, model::ABM, next_loc::Location)::Bool
 	# Plan journey of `agent` to `next_loc`
 
-	if agent.current_loc_id === next_loc.id
+	params = model.parameters::Parameters
+	old_pos = isempty(agent.upcoming_pos) ? agent.pos : last(agent.upcoming_pos)
+	old_loc = LocationMod.location_by_pos(old_pos, params)
+
+	if old_loc.id === next_loc.id
 		# If agent is already at the destination location, then return
 		return false
 	end
-    
-	params = model.parameters::Parameters
 
-	current_loc = params.Locations[agent.current_loc_id]
-	
 	# Get a random path from current location to next location
-	path = LocationMod.get_travel_path(current_loc, next_loc, params)
+	path = LocationMod.get_travel_path(old_loc, next_loc, params)
 	if path === nothing
 		# If no possible path exists, then return
 		return false
 	end
 	
-	old_pos = agent.pos
-	for loc_id in path
-
+	for loc_id in path[2:end]
 		# Find random position inside location of the path
 		loc = params.Locations[loc_id]
 		pos = LocationMod.random_pos_in_loc(loc)
 
 		# Interpolate travel to this position from old position
-		local steps = LocationMod.interpolate_steps!(old_pos, pos, loc, 2)
-        if !isempty(steps)
-            append!(agent.upcoming_pos, steps)
-			# Update old position
-			old_pos = deepcopy(last(steps))
-        end
+		steps = LocationMod.interpolate_steps(old_pos, pos, loc, 2)
+		append!(agent.upcoming_pos, steps)
+		old_pos = pos
 
 	end
 
@@ -58,7 +53,9 @@ end
 function plan_move_home!(agent::Person, model::ABM)::Bool
 	# Plan visit to home
 
-	agent.home_loc_id === agent.current_loc_id && return false
+	pos = isempty(agent.upcoming_pos) ? agent.pos : last(agent.upcoming_pos)
+	current_loc = LocationMod.location_by_pos(pos, model.parameters)
+	agent.home_loc_id === current_loc.id && return false
 
 	home = model.parameters.Locations[agent.home_loc_id]
 	plan_cross_loc_move!(agent, model, home)
@@ -80,13 +77,14 @@ end
 function plan_same_loc_move!(agent::Person, model::ABM)
 	# Move agent within current location
 
-	loc = model.parameters.Locations[agent.current_loc_id]
+	pos = isempty(agent.upcoming_pos) ? agent.pos : last(agent.upcoming_pos)
+	loc = LocationMod.location_by_pos(pos, model.parameters)
 
 	# Add new coordinates for the agent to move in next few steps
 	new_pos = LocationMod.random_pos_in_loc(loc)
 	
 	# interpolate the steps from old->new position
-	steps = LocationMod.interpolate_steps!(agent.pos, new_pos, loc, 2)
+	steps = LocationMod.interpolate_steps(pos, new_pos, loc, 2)
 	append!(agent.upcoming_pos, steps)
 
 end

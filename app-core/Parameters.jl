@@ -21,9 +21,7 @@ DECEASED,
 distance,
 is,
 is_infected,
-is_symptomatic,
-at_location,
-at_home
+is_symptomatic
 
 using JSON
 using Random
@@ -63,7 +61,6 @@ mutable struct Person <: AbstractAgent
 	id::Int64
 	pos::NTuple{2,Float64}
 	home_loc_id::Int64
-	current_loc_id::Int64
 	upcoming_pos::Array{NTuple{2,Float64}}
 	infection_status::Symbol
 	infection_status_duration::Int64
@@ -79,6 +76,7 @@ mutable struct Parameters
 
     day::Int64
     step::Int64
+    step_size::Int64
     stop_flag::Bool
 
     num_agents::Int64
@@ -138,19 +136,6 @@ end
 
 function is_symptomatic(a::Person)::Bool
 	is(a, INFECTED) || is(a, HOSPITALIZED)
-end
-
-function at_location(a::Person, loc_id::Int64)::Bool
-    a.current_loc_id === loc_id
-end
-
-function at_location(a::Person, loc_type::Symbol, p::Parameters)
-	ind = loc_id2ind(a.current_loc_id, p)
-	p.map[ind...] === loc_type
-end
-
-function at_home(a::Person)::Bool
-    at_location(a, a.home_loc_id)
 end
 
 function _init_locations(map::Matrix{Symbol}, map_item_capacity::Dict)::Array{Location}
@@ -229,6 +214,7 @@ function _read_params(model_name::String, params::Dict)::Parameters
     parameters = Parameters(model_name, 
                             0, 
                             0, 
+                            params["step_size"],
                             false, 
                             params["num_agents"], 
                             params["num_days"], 
@@ -252,10 +238,12 @@ end
 
 function enrich_params!(model::ABM, attrs::Dict)
     parameters = model.parameters
+    
     parameters.infection_radius = get(attrs, "infection_radius", parameters.infection_radius)
     # parameters.prob_visit_hospital = get(attrs, "prob_visit_hospital", parameters.prob_visit_hospital)
     parameters.prob_vaccinated_and_spread = get(attrs, "prob_vaccinated_and_spread", Tuple(parameters.prob_vaccinated_and_spread))
     parameters.social_distancing = get(attrs, "social_distancing", parameters.social_distancing)
+    parameters.step_size = get(attrs, "step_size", parameters.step_size)
     
 
     percentage_masked = Float64(get(attrs, "percentage_masked", parameters.percentage_masked))
@@ -333,25 +321,28 @@ function update_vaccinated_agents!(model::ABM, percentage_vaccinated::Vector{Flo
         num_dose2 = floor(Int64, (percentage_vaccinated[2] / 100.0) * n)
 
         # agents w.r.t. number of vaccine shots they have received till now
-        vaccinated0 = [agent.id for (_, agent::Person) in model.agents if agent.vaccine_shots === 0 && is_alive(agent)]
-        vaccinated1 = [agent.id for (_, agent::Person) in model.agents if agent.vaccine_shots === 1 && is_alive(agent)]
-        vaccinated2 = [agent.id for (_, agent::Person) in model.agents if agent.vaccine_shots > 1 && is_alive(agent)]
+        vaccinated0 = shuffle([agent.id for (_, agent::Person) in model.agents if agent.vaccine_shots === 0 && is_alive(agent)])
+        vaccinated1 = shuffle([agent.id for (_, agent::Person) in model.agents if agent.vaccine_shots === 1 && is_alive(agent)])
         
         # vaccinate 1st dose
-        num_agents_to_vaccine1 = min(num_dose1 - length(vaccinated1) - length(vaccinated2), length(vaccinated0))
+        num_agents_to_vaccine1 = min(length(vaccinated0), num_dose1)
         for i=1:num_agents_to_vaccine1
-            a = rand(vaccinated0)
+            a = vaccinated0[i]
             model.agents[a].vaccine_shots = 1
         end
-        println(num_agents_to_vaccine1, " agents were vaccinated with dose 1")
+        if num_agents_to_vaccine1 > 0
+            println(num_agents_to_vaccine1, " agents were vaccinated with dose 1")
+        end
         
         # vaccinate 2nd dose
-        num_agents_to_vaccine2 = min(num_dose2 - length(vaccinated2), length(vaccinated1))
+        num_agents_to_vaccine2 = min(length(vaccinated1), num_dose2)
         for i=1:num_agents_to_vaccine2
-            a = rand(vaccinated1)
+            a = vaccinated1[i]
             model.agents[a].vaccine_shots = 2
         end
-        println(num_agents_to_vaccine2, " agents were vaccinated with dose 2")
+        if num_agents_to_vaccine2 > 0
+            println(num_agents_to_vaccine2, " agents were vaccinated with dose 2")
+        end
 
     end
 end

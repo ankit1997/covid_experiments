@@ -94,11 +94,10 @@
             <span class="p-float-label">
               <p-inputNumber
                 inputId="integeronly"
-                [(ngModel)]="params.num_days"
-                [disabled]="modelInitiated"
+                [(ngModel)]="params.step_size"
               >
               </p-inputNumber>
-              <label for="inputtext">Number of days</label>
+              <label for="inputtext">Step Size (in days)</label>
             </span>
           </div>
           <div class="p-field p-col-12 p-md-2 input-field">
@@ -135,7 +134,7 @@
                 [max]="100"
                 [(ngModel)]="params.percentage_vaccinated[0]"
               ></p-inputNumber>
-              <label>Percentage Vaccinated Dose #1</label>
+              <label>Vaccine#1 for unvaccinated (%)</label>
             </span>
           </div>
           <div class="p-field p-col-12 p-md-2 input-field">
@@ -148,7 +147,7 @@
                 [max]="100"
                 [(ngModel)]="params.percentage_vaccinated[1]"
               ></p-inputNumber>
-              <label>Percentage Vaccinated Dose #2</label>
+              <label>Vaccine#2 when Vaccine#1 is done (%)</label>
             </span>
           </div>
         </div>
@@ -169,19 +168,22 @@
           </div>
           <div class="p-field p-col-12 p-md-1">
             <p-button
+              label="Download"
+              (onClick)="downloadModelData()"
+            ></p-button>
+          </div>
+          <div class="p-field p-col-12 p-md-1">
+            <p-button
               label="Terminate"
               (onClick)="terminateModel()"
               styleClass="p-button-secondary"
             ></p-button>
           </div>
-          <div
-            class="p-field p-col-12 p-md-2"
-            *ngIf="specialFocusAgents.length > 0"
-          >
+          <div class="p-field p-col-12 p-md-2">
             <p-button
-              label="Reset selected agents"
-              (onClick)="specialFocusAgents = []"
-              styleClass="p-button-secondary"
+              label="Specific: {{ showOnlyFocussedAgents }}"
+              (onClick)="showOnlyFocussedAgents = !showOnlyFocussedAgents"
+              [disabled]="!modelInitiated || specialFocusAgents.size === 0"
             ></p-button>
           </div>
         </div>

@@ -10,11 +10,11 @@ using Random:shuffle
 function get_model(model_name::String, params::Dict)::ABM
 
 	parameters = model_params(model_name, params)::Parameters
-	println("Creating model for ", parameters.num_agents, " agents...")    
+	println("Creating model for ", parameters.num_agents, " agents...")
 
 	space2d = ContinuousSpace((parameters.world_height, parameters.world_width), 0.02)
 	model = ABM(Person, space2d, properties=Dict{Symbol,Parameters}(:parameters => parameters))
-	_init_world(model)	
+	_init_world(model)
 	return model
 	
 end
@@ -31,6 +31,8 @@ function _init_world(model::ABM)
 	vaccine2 = floor(Int64, (model.parameters.percentage_vaccinated[2] * n / 100.0))
 	vaccine_shots = shuffle(split("1"^vaccine1 * "2"^vaccine2 * "0"^(n - vaccine1 - vaccine2), ""))
 
+	asymptomatic = rand(1:n, floor(Int64, n * 0.2))
+
 	for i = 1:n
 		
         available_locs = filter(loc -> loc.type === HOUSE && loc.capacity > 0, model.parameters.Locations)
@@ -44,60 +46,60 @@ function _init_world(model::ABM)
 
 		loc = rand(available_locs)
 		pos = random_pos_in_loc(loc)
-		is_asymptomatic = is_probable(0.2)
+		is_asymptomatic = i in asymptomatic
 
 		# add agent into the model at selected location
 		infection_status = (i in infected ? (is_asymptomatic ? ASYMPTOMATIC : MILD) : SUSCEPTIBLE)
 		is_masked = (i in masked)
 		num_vaccine_shots = parse(Int64, vaccine_shots[i])
 
-		add_agent!(pos, model, loc.id, loc.id, [], infection_status, 0, is_masked, num_vaccine_shots, rand(), is_asymptomatic)
+		add_agent!(pos, model, loc.id, [], infection_status, 0, is_masked, num_vaccine_shots, rand(), is_asymptomatic)
 		model.parameters.Locations[loc.id].capacity -= 1
         
 	end
 	
 end
 
-function social_distancing!(model::ABM)
+# function social_distancing!(model::ABM)
 
-	!model.parameters.social_distancing && return
+# 	!model.parameters.social_distancing && return
 
-	for loc in model.parameters.Locations
-		agents = [agent.id for (_, agent::Person) in model.agents if agent.current_loc_id === loc.id && agent.infection_status !==  DECEASED]
-		n = length(agents)
-		for _ = 1:10
-			force_dict = Dict()
-			for i = 1:n
-				for j = 1:n
-					if i === j
-						continue
-					end
+# 	for loc in model.parameters.Locations
+# 		agents = [agent.id for (_, agent::Person) in model.agents if agent.current_loc_id === loc.id && agent.infection_status !==  DECEASED]
+# 		n = length(agents)
+# 		for _ = 1:10
+# 			force_dict = Dict()
+# 			for i = 1:n
+# 				for j = 1:n
+# 					if i === j
+# 						continue
+# 					end
 					
-					a1 = model.agents[i]
-					a2 = model.agents[j]
+# 					a1 = model.agents[i]
+# 					a2 = model.agents[j]
 
-					d = distance(a1.pos, a2.pos)
-					d == 0.0 && continue
+# 					d = distance(a1.pos, a2.pos)
+# 					(d == 0.0 || d > 1.0) && continue
 					
-					f = _normalize((a1.pos[1] - a2.pos[1], a1.pos[2] - a2.pos[2]))
+# 					f = _normalize((a1.pos[1] - a2.pos[1], a1.pos[2] - a2.pos[2]))
 
-					f_old1 = get(force_dict, a1, (0.0, 0.0))
-					force_dict[a1] = _normalize((f_old1[1] + f[1], f_old1[2] + f[2]))
+# 					f_old1 = get(force_dict, a1, (0.0, 0.0))
+# 					force_dict[a1] = _normalize((f_old1[1] + f[1], f_old1[2] + f[2]))
 
-					f_old2 = get(force_dict, a2, (0.0, 0.0))
-					force_dict[a2] = _normalize((f_old2[1] - f[1], f_old2[2] - f[2]))
-				end
-			end
-			for (agent, force) in force_dict
-				pos = agent.pos
-				new_pos = pos[1] + 2 * force[1], pos[2] + 2 * force[2]
-				new_pos = clamp_in_loc(new_pos, model.parameters.Locations[agent.current_loc_id])
-				move_person!(agent, model, new_pos)
-			end
-		end
-	end
+# 					f_old2 = get(force_dict, a2, (0.0, 0.0))
+# 					force_dict[a2] = _normalize((f_old2[1] - f[1], f_old2[2] - f[2]))
+# 				end
+# 			end
+# 			for (agent, force) in force_dict
+# 				pos = agent.pos
+# 				new_pos = pos[1] + 2 * force[1], pos[2] + 2 * force[2]
+# 				new_pos = clamp_in_loc(new_pos, model.parameters.Locations[agent.current_loc_id])
+# 				move_person!(agent, model, new_pos)
+# 			end
+# 		end
+# 	end
 
-end
+# end
 
 function _normalize(vector::NTuple{2,Float64})
 	if vector === (0.0, 0.0)

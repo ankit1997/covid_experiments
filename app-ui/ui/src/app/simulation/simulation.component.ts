@@ -1,7 +1,7 @@
 import { Component, Input, ViewChild, OnInit } from '@angular/core';
 import { BackendService } from '../backend.service';
 import { MessageService } from 'primeng/api';
-// import { Chart } from 'chart.js';
+import { saveAs } from 'file-saver';
 
 @Component({
   selector: 'app-simulation',
@@ -21,15 +21,16 @@ export class SimulationComponent implements OnInit {
     model_name: 'Model-A',
     num_agents: 200,
     num_days: 200,
+    step_size: 1,
     num_steps_in_day: 24,
     infection_radius: 0.5,
     initial_infections: 20,
     percentage_masked: 50.0,
     location: {
-      num_houses: 14,
-      num_hospitals: 1,
-      num_empty: 85,
-      map_dimensions: '10 x 10',
+      num_houses: 70,
+      num_hospitals: 5,
+      num_empty: 150,
+      map_dimensions: '15 x 15',
       capacity: {
         H: 5,
         '+': 10,
@@ -47,12 +48,12 @@ export class SimulationComponent implements OnInit {
     scales: {
       xAxes: [
         {
-          display: false,
+          display: true,
         },
       ],
       yAxes: [
         {
-          display: false,
+          display: true,
         },
       ],
     },
@@ -66,8 +67,13 @@ export class SimulationComponent implements OnInit {
       duration: 1500,
     },
     onClick: (event: any, item: any) => {
-      if (item && item[0] && item[0]._index >= 0) {
-        this.specialFocusAgents.push(item[0]._index);
+      if (
+        item &&
+        item[0] &&
+        item[0]._index >= 0 &&
+        !this.specialFocusAgents.has(item[0]._index)
+      ) {
+        this.specialFocusAgents.add(item[0]._index);
         this.showMessage(
           true,
           'Agent #' + (item[0]._index + 1) + ' is now being tracked'
@@ -237,7 +243,8 @@ export class SimulationComponent implements OnInit {
   modelInitiated: boolean = false;
   simulationEnded: boolean = false;
   history_limit: number = 24;
-  specialFocusAgents: number[] = [];
+  showOnlyFocussedAgents: boolean = false;
+  specialFocusAgents: Set<number> = new Set();
 
   constructor(
     private backendService: BackendService,
@@ -275,13 +282,13 @@ export class SimulationComponent implements OnInit {
     this.backendService.initModel(payload).subscribe(
       (result) => {
         this.showMessage(result.success, result.message);
+        this.specialFocusAgents.clear();
         if (result.success) {
           this.getWorldMap();
           this.numSteps = this.params.num_days * this.params.num_steps_in_day;
           this.modelInitiated = true;
         }
         this.blockedDocument = false;
-        this.specialFocusAgents = [];
       },
       (error) => {
         this.blockedDocument = false;
@@ -295,14 +302,15 @@ export class SimulationComponent implements OnInit {
     this.blockedDocument = true;
     this.backendService
       .terminateModel(this.params.model_name)
-      .subscribe((result) => {
+      .subscribe((result: any) => {
         this.showMessage(result.success, result.message);
         // after termination of model, clear the history
         this.stepDataHistory = [];
         this.modelInitiated = false;
         this.blockedDocument = false;
         this.onOff = false;
-        this.specialFocusAgents = [];
+        this.specialFocusAgents.clear();
+        this.simulationEnded = false;
       });
   }
 
@@ -314,16 +322,30 @@ export class SimulationComponent implements OnInit {
     this.backendService
       .updateModel(this.params.model_name, payload)
       .subscribe((result: any) => {
-        console.log(result);
+        this.showMessage(result.success, result.message);
+      });
+  }
+
+  downloadModelData() {
+    this.backendService
+      .downloadModelData(this.params.model_name, '1', '-1')
+      .subscribe((result: any) => {
+        let blob = new Blob([JSON.stringify(result)], {
+          type: 'application/json',
+        });
+        saveAs(blob, 'download.json');
       });
   }
 
   getWorldMap() {
+    this.blockedDocument = true;
     this.backendService
       .worldMap(this.params.model_name)
       .subscribe((result: any) => {
+        this.blockedDocument = false;
         if (result && result.length > 0) {
           this.drawWorldMap(result);
+          this.handlePlayPauseClick('NEXT');
         } else {
           this.showMessage(false, 'Unexpected error, check server logs.');
         }
@@ -347,8 +369,9 @@ export class SimulationComponent implements OnInit {
     this.stepData.datasets[0].pointRadius = data.infection_status.map(
       (inf: string, i: number) => {
         if (
-          this.specialFocusAgents.length > 0 &&
-          this.specialFocusAgents.filter((a: number) => a === i).length === 0
+          this.showOnlyFocussedAgents &&
+          this.specialFocusAgents.size > 0 &&
+          !this.specialFocusAgents.has(i)
         ) {
           return 0;
         }
@@ -429,7 +452,6 @@ export class SimulationComponent implements OnInit {
 
   drawStatsPlot(data: any, latest: boolean) {
     if (latest) {
-      let num = 0;
       for (let dataset of this.plotData.datasets) {
         if (dataset.label === 'Step') {
           continue;
@@ -437,7 +459,12 @@ export class SimulationComponent implements OnInit {
         let state = dataset.label;
         let value = data.count[state] ? data.count[state] : 0;
         this.plotDataMaxVal = Math.max(this.plotDataMaxVal, value);
-        dataset.data.push(value);
+        dataset.data[data.step] = value;
+        let i = data.step - 1;
+        while (i >= 0 && dataset.data[i] === undefined) {
+          dataset.data[i] = value;
+          i--;
+        }
         dataset.borderColor = this.backendService.getColorFromInfectionStatus(
           dataset.label
         );
@@ -449,9 +476,10 @@ export class SimulationComponent implements OnInit {
         } else {
           dataset.backgroundColor = '#01010101';
         }
-        num = dataset.data.length;
       }
-      this.plotData.labels = [...Array(num + 5).keys()];
+      this.plotData.labels = Object.keys(this.plotData.datasets[0].data).map(
+        Number
+      );
       this.plotChart.chart.update();
     }
     // Draw vertical line specifying step
