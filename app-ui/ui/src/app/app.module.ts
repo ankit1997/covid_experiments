@@ -21,6 +21,7 @@ import { ToastModule } from 'primeng/toast';
 import { OverlayPanelModule } from 'primeng/overlaypanel';
 import { TooltipModule } from 'primeng/tooltip';
 import { BlockUIModule } from 'primeng/blockui';
+import { DropdownModule } from 'primeng/dropdown';
 
 @NgModule({
   declarations: [AppComponent, SimulationComponent, ParamsComponent],
@@ -39,6 +40,7 @@ import { BlockUIModule } from 'primeng/blockui';
     ToggleButtonModule,
     TooltipModule,
     BlockUIModule,
+    DropdownModule,
     HttpClientModule,
     BrowserAnimationsModule,
     FormsModule,

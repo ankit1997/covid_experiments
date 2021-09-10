@@ -3,7 +3,7 @@
 
 <div>
   <p-accordion [multiple]="true">
-    <p-accordionTab header="Parameters" [selected]="!modelInitiated">
+    <p-accordionTab header="Parameters" [selected]="true">
       <div>
         <div class="p-fluid p-grid">
           <div class="p-field p-col-12 p-md-2 input-field">
@@ -24,7 +24,17 @@
                 type="text"
                 [(ngModel)]="params.initial_infections"
                 [disabled]="modelInitiated"
+                [min]="1"
+                [max]="params.num_agents"
+                suffix=" people"
               ></p-inputNumber>
+              <p-slider
+                [(ngModel)]="params.initial_infections"
+                [min]="1"
+                [max]="params.num_agents"
+                [step]="1"
+                [disabled]="modelInitiated"
+              ></p-slider>
               <label>Initial Infections</label>
             </span>
           </div>
@@ -33,19 +43,58 @@
               <p-inputNumber
                 type="text"
                 [(ngModel)]="params.location.num_houses"
+                [min]="0"
+                [max]="200"
                 [disabled]="modelInitiated"
               ></p-inputNumber>
+              <p-slider
+                [(ngModel)]="params.location.num_houses"
+                [min]="0"
+                [max]="200"
+                [step]="1"
+                [disabled]="modelInitiated"
+              ></p-slider>
               <label>Number of Houses</label>
             </span>
           </div>
+
           <div class="p-field p-col-12 p-md-2 input-field">
             <span class="p-float-label">
-              <p-inputMask
-                mask="99 x 99"
-                [(ngModel)]="params.location.map_dimensions"
-                [disabled]="modelInitiated"
-              ></p-inputMask>
-              <label>Map Dimensions</label>
+              <p-inputNumber
+                type="text"
+                mode="decimal"
+                [minFractionDigits]="2"
+                [min]="0"
+                [max]="100"
+                suffix=" %"
+                [(ngModel)]="params.percentage_vaccinated[0]"
+              ></p-inputNumber>
+              <p-slider
+                [(ngModel)]="params.percentage_vaccinated[0]"
+                [min]="0"
+                [max]="100"
+                [step]="0.5"
+              ></p-slider>
+              <label>Vaccine#1 for unvaccinated (%)</label>
+            </span>
+          </div>
+
+          <div class="p-field p-col-12 p-md-2 input-field">
+            <span class="p-float-label">
+              <p-inputNumber
+                type="text"
+                [(ngModel)]="params.isolation"
+                [min]="0"
+                [max]="30"
+                suffix=" % chance of isolation when sick"
+              ></p-inputNumber>
+              <p-slider
+                [(ngModel)]="params.isolation"
+                [min]="0"
+                [max]="30"
+                [step]="1"
+              ></p-slider>
+              <label>Isolation</label>
             </span>
           </div>
         </div>
@@ -66,9 +115,18 @@
               <p-inputNumber
                 type="text"
                 mode="decimal"
+                [min]="0.1"
+                [max]="3.0"
                 [minFractionDigits]="2"
                 [(ngModel)]="params.infection_radius"
+                suffix=" units"
               ></p-inputNumber>
+              <p-slider
+                [(ngModel)]="params.infection_radius"
+                [min]="0.09"
+                [max]="1.0"
+                [step]="0.01"
+              ></p-slider>
               <label>Infection Radius</label>
             </span>
           </div>
@@ -77,64 +135,18 @@
               <p-inputNumber
                 type="text"
                 [(ngModel)]="params.location.num_hospitals"
+                [min]="0"
+                [max]="100"
                 [disabled]="modelInitiated"
               ></p-inputNumber>
+              <p-slider
+                [(ngModel)]="params.location.num_hospitals"
+                [min]="0"
+                [max]="100"
+                [step]="1"
+                [disabled]="modelInitiated"
+              ></p-slider>
               <label>Number of Hospitals</label>
-            </span>
-          </div>
-          <div class="p-field p-col-12 p-md-2 input-field">
-            <p-button
-              label="Social Distancing: {{ params.social_distancing }}"
-              (onClick)="params.social_distancing = !params.social_distancing"
-            ></p-button>
-          </div>
-        </div>
-        <div class="p-fluid p-grid">
-          <div class="p-field p-col-12 p-md-2 input-field">
-            <span class="p-float-label">
-              <p-inputNumber
-                inputId="integeronly"
-                [(ngModel)]="params.step_size"
-              >
-              </p-inputNumber>
-              <label for="inputtext">Step Size (in days)</label>
-            </span>
-          </div>
-          <div class="p-field p-col-12 p-md-2 input-field">
-            <span class="p-float-label">
-              <p-inputNumber
-                type="text"
-                mode="decimal"
-                [minFractionDigits]="2"
-                [min]="0"
-                [max]="100"
-                [(ngModel)]="params.percentage_masked"
-              >
-              </p-inputNumber>
-              <label for="inputtext">Percentage of people masked</label>
-            </span>
-          </div>
-          <div class="p-field p-col-12 p-md-2 input-field">
-            <span class="p-float-label">
-              <p-inputNumber
-                type="text"
-                [(ngModel)]="params.location.num_empty"
-                [disabled]="modelInitiated"
-              ></p-inputNumber>
-              <label>Number of Empty Roads</label>
-            </span>
-          </div>
-          <div class="p-field p-col-12 p-md-2 input-field">
-            <span class="p-float-label">
-              <p-inputNumber
-                type="text"
-                mode="decimal"
-                [minFractionDigits]="2"
-                [min]="0"
-                [max]="100"
-                [(ngModel)]="params.percentage_vaccinated[0]"
-              ></p-inputNumber>
-              <label>Vaccine#1 for unvaccinated (%)</label>
             </span>
           </div>
           <div class="p-field p-col-12 p-md-2 input-field">
@@ -146,8 +158,126 @@
                 [min]="0"
                 [max]="100"
                 [(ngModel)]="params.percentage_vaccinated[1]"
+                suffix=" %"
               ></p-inputNumber>
+              <p-slider
+                [(ngModel)]="params.percentage_vaccinated[1]"
+                [min]="0"
+                [max]="100"
+                [step]="0.5"
+              ></p-slider>
               <label>Vaccine#2 when Vaccine#1 is done (%)</label>
+            </span>
+          </div>
+        </div>
+        <div class="p-fluid p-grid">
+          <div class="p-field p-col-12 p-md-2 input-field">
+            <span class="p-float-label">
+              <p-inputNumber
+                inputId="integeronly"
+                [(ngModel)]="params.step_size"
+                [min]="1"
+                [max]="50"
+                suffix=" days"
+              >
+              </p-inputNumber>
+              <p-slider
+                [(ngModel)]="params.step_size"
+                [min]="1"
+                [max]="50"
+                [step]="1"
+              ></p-slider>
+              <label for="inputtext">Step size (in days)</label>
+            </span>
+          </div>
+          <div class="p-field p-col-12 p-md-2 input-field">
+            <span class="p-float-label">
+              <p-inputNumber
+                type="text"
+                mode="decimal"
+                [minFractionDigits]="2"
+                suffix=" % population"
+                [min]="0"
+                [max]="100"
+                [(ngModel)]="params.percentage_masked"
+              >
+              </p-inputNumber>
+              <p-slider
+                [(ngModel)]="params.percentage_masked"
+                [min]="0"
+                [max]="100"
+                [step]="1"
+              ></p-slider>
+              <label for="inputtext">Percentage of people masked</label>
+            </span>
+          </div>
+          <div class="p-field p-col-12 p-md-2 input-field">
+            <span class="p-float-label">
+              <p-inputNumber
+                type="text"
+                [(ngModel)]="params.location.num_shops"
+                [min]="0"
+                [max]="200"
+                [disabled]="modelInitiated"
+              ></p-inputNumber>
+              <p-slider
+                [(ngModel)]="params.location.num_shops"
+                [min]="0"
+                [max]="100"
+                [step]="1"
+                [disabled]="modelInitiated"
+              ></p-slider>
+              <label>Number of Shops</label>
+            </span>
+          </div>
+
+          <div class="p-field p-col-12 p-md-2 input-field">
+            <span class="p-float-label">
+              <p-inputNumber
+                type="text"
+                [(ngModel)]="params.social_distancing"
+                [min]="0"
+                [max]="100"
+              ></p-inputNumber>
+              <p-slider
+                [(ngModel)]="params.social_distancing"
+                [min]="0"
+                [max]="100"
+                [step]="2"
+              ></p-slider>
+              <label>Social Distancing</label>
+            </span>
+          </div>
+        </div>
+        <div class="p-fluid p-grid">
+          <div class="p-field p-col-12 p-md-2 input-field"></div>
+          <div class="p-field p-col-12 p-md-2 input-field"></div>
+          <div class="p-field p-col-12 p-md-2 input-field">
+            <span class="p-float-label">
+              <p-inputMask
+                mask="99 x 99"
+                [(ngModel)]="params.location.map_dimensions"
+                [disabled]="modelInitiated"
+              ></p-inputMask>
+              <label>Map Dimensions</label>
+            </span>
+          </div>
+          <div class="p-field p-col-12 p-md-2 input-field">
+            <span class="p-float-label">
+              <p-inputNumber
+                type="text"
+                [(ngModel)]="params.quarantine"
+                [min]="0"
+                [max]="100"
+                suffix=" % population"
+              ></p-inputNumber>
+              <p-slider
+                [(ngModel)]="params.quarantine"
+                [min]="0"
+                [max]="100"
+                [step]="1"
+              ></p-slider>
+              <label>Home Quarantine</label>
             </span>
           </div>
         </div>
@@ -179,6 +309,13 @@
               styleClass="p-button-secondary"
             ></p-button>
           </div>
+          <div class="p-field p-col-12 p-md-1">
+            <p-button
+              label="Delete"
+              (onClick)="deleteModel()"
+              styleClass="p-button-secondary"
+            ></p-button>
+          </div>
           <div class="p-field p-col-12 p-md-2">
             <p-button
               label="Specific: {{ showOnlyFocussedAgents }}"
@@ -186,14 +323,38 @@
               [disabled]="!modelInitiated || specialFocusAgents.size === 0"
             ></p-button>
           </div>
+          <div class="p-field p-col-12 p-md-6">
+            <div class="p-inputgroup">
+              <p-inputNumber
+                type="text"
+                [(ngModel)]="params.migrants.count"
+                [min]="0"
+                [max]="50"
+                [disabled]="!modelInitiated"
+                suffix=" people who are"
+              ></p-inputNumber>
+              <p-dropdown
+                [options]="params.migrants.options"
+                [(ngModel)]="params.migrants.infection_status"
+                [disabled]="!modelInitiated"
+              ></p-dropdown>
+              <button
+                type="button"
+                pButton
+                label="Add migrants"
+                [disabled]="!modelInitiated"
+                (click)="addMigrants()"
+              ></button>
+            </div>
+          </div>
         </div>
       </div>
     </p-accordionTab>
-    <p-accordionTab header="Execution" [selected]="modelInitiated">
+    <p-accordionTab header="Execution" [selected]="true">
       <div>
         <div class="p-fluid p-grid">
           <h4 style="margin-left: 5px">
-            Hour: {{ currentStep }}, Day = {{ day }}
+            Hour = {{ ((currentStep - 1) % 24) + 1 }}:00, Day = {{ day }}
           </h4>
         </div>
         <div class="p-fluid p-grid" *ngIf="modelInitiated">
@@ -221,6 +382,10 @@
                 label="{{ onOff ? 'Pause' : 'Play' }}"
                 (click)="handlePlayPauseClick('PLAY_PAUSE')"
               ></button>
+              <p-button
+                icon="pi {{ showScatterPlot ? 'pi-eye-slash' : 'pi-eye' }}"
+                (onClick)="toggleScatterPlot()"
+              ></p-button>
               <button
                 pButton
                 pRipple
@@ -242,6 +407,7 @@
         </div>
         <div class="p-fluid p-grid" *ngIf="modelInitiated">
           <div
+            *ngIf="showScatterPlot"
             [ngStyle]="{
               margin: '5px',
               resize: 'both',

@@ -19,29 +19,59 @@ export class SimulationComponent implements OnInit {
   onOff: boolean = false;
   params: any = {
     model_name: 'Model-A',
-    num_agents: 200,
-    num_days: 200,
+    num_agents: 300,
+    num_days: 50,
     step_size: 1,
     num_steps_in_day: 24,
-    infection_radius: 0.5,
-    initial_infections: 20,
-    percentage_masked: 50.0,
+    infection_radius: 0.1,
+    initial_infections: 5,
+    percentage_masked: 5.0,
     location: {
-      num_houses: 70,
-      num_hospitals: 5,
-      num_empty: 150,
-      map_dimensions: '15 x 15',
+      num_houses: 15,
+      num_hospitals: 2,
+      num_shops: 5,
+      map_dimensions: '08 x 08',
       capacity: {
-        H: 5,
-        '+': 10,
+        H: 10,
+        '+': 30,
         O: 70,
+        C: 10,
+        Q: 10,
       },
     },
     probabilities: {
       prob_visit_hospital: [],
     },
     percentage_vaccinated: [10.0, 0.0],
-    social_distancing: false,
+    social_distancing: 5,
+    quarantine: 0,
+    isolation: 0,
+    migrants: {
+      count: 0,
+      infection_status: BackendService.SUSCEPTIBLE,
+      options: [
+        {
+          label: 'Susceptible',
+          value: BackendService.SUSCEPTIBLE,
+        },
+        {
+          label: 'Asymptomatic',
+          value: BackendService.ASYMPTOMATIC,
+        },
+        {
+          label: 'Mild',
+          value: BackendService.MILD,
+        },
+        {
+          label: 'Infected',
+          value: BackendService.INFECTED,
+        },
+        {
+          label: 'Severe',
+          value: BackendService.SEVERE,
+        },
+      ],
+    },
   };
 
   scatterOptions: any = {
@@ -49,11 +79,19 @@ export class SimulationComponent implements OnInit {
       xAxes: [
         {
           display: true,
+          ticks: {
+            beginAtZero: true,
+            stepSize: 1,
+          },
         },
       ],
       yAxes: [
         {
           display: true,
+          ticks: {
+            beginAtZero: true,
+            stepSize: 1,
+          },
         },
       ],
     },
@@ -64,7 +102,7 @@ export class SimulationComponent implements OnInit {
       enabled: false,
     },
     animation: {
-      duration: 1500,
+      duration: 1000,
     },
     onClick: (event: any, item: any) => {
       if (
@@ -235,7 +273,7 @@ export class SimulationComponent implements OnInit {
       },
     ],
   };
-  currentStep: number = -1;
+  currentStep: number = 0;
   latestStep: number = 0;
   numSteps: number = 0;
   step: number = -1;
@@ -245,6 +283,7 @@ export class SimulationComponent implements OnInit {
   history_limit: number = 24;
   showOnlyFocussedAgents: boolean = false;
   specialFocusAgents: Set<number> = new Set();
+  showScatterPlot: boolean = true;
 
   constructor(
     private backendService: BackendService,
@@ -287,8 +326,9 @@ export class SimulationComponent implements OnInit {
           this.getWorldMap();
           this.numSteps = this.params.num_days * this.params.num_steps_in_day;
           this.modelInitiated = true;
+        } else {
+          this.blockedDocument = false;
         }
-        this.blockedDocument = false;
       },
       (error) => {
         this.blockedDocument = false;
@@ -310,7 +350,34 @@ export class SimulationComponent implements OnInit {
         this.blockedDocument = false;
         this.onOff = false;
         this.specialFocusAgents.clear();
+        this.day = 0;
+        this.currentStep = 0;
+        this.latestStep = 0;
         this.simulationEnded = false;
+        for (let dataset of this.plotData.datasets) {
+          dataset.data = [];
+        }
+      });
+  }
+
+  deleteModel() {
+    this.blockedDocument = true;
+    this.backendService
+      .deleteModel(this.params.model_name)
+      .subscribe((result: any) => {
+        this.showMessage(result.success, result.message);
+        this.stepDataHistory = [];
+        this.modelInitiated = false;
+        this.blockedDocument = false;
+        this.onOff = false;
+        this.specialFocusAgents.clear();
+        this.day = 0;
+        this.currentStep = 0;
+        this.latestStep = 0;
+        this.simulationEnded = false;
+        for (let dataset of this.plotData.datasets) {
+          dataset.data = [];
+        }
       });
   }
 
@@ -330,6 +397,10 @@ export class SimulationComponent implements OnInit {
     this.backendService
       .downloadModelData(this.params.model_name, '1', '-1')
       .subscribe((result: any) => {
+        if (result.success === false) {
+          this.showMessage(result.success, result.message);
+          return;
+        }
         let blob = new Blob([JSON.stringify(result)], {
           type: 'application/json',
         });
@@ -353,6 +424,9 @@ export class SimulationComponent implements OnInit {
   }
 
   loadAgentData(data: any) {
+    if (!this.showScatterPlot) {
+      return;
+    }
     this.stepData.datasets[0].data = data.positions.map((p: number[]) => {
       return { x: p[0], y: p[1] };
     });
@@ -404,13 +478,13 @@ export class SimulationComponent implements OnInit {
       this.modelInitiated = true;
     }
     if (this.currentStep in this.stepDataHistory) {
-      this.day = Number.parseFloat((this.currentStep / 24).toPrecision(3));
+      this.day = Number.parseInt(this.currentStep / 24 + '');
       this.drawAgents(undefined, this.currentStep);
       return;
     }
     // const startTime = new Date().getTime();
     this.backendService
-      .step(this.params.model_name)
+      .step(this.params.model_name, this.latestStep + 1)
       .subscribe((result: any) => {
         this.blockedDocument = false;
         if (result.success === false && result.message === 'END') {
@@ -423,24 +497,24 @@ export class SimulationComponent implements OnInit {
         } else if (result) {
           this.currentStep = result.step;
           this.latestStep = result.step;
-          this.day = Number.parseFloat((this.currentStep / 24).toPrecision(3));
-          this.stepDataHistory[this.currentStep] = result;
-          if (
-            this.latestStep - this.history_limit in this.stepDataHistory &&
-            this.stepDataHistory[this.latestStep - this.history_limit] !==
-              undefined
-          ) {
-            for (
-              let i = this.latestStep - this.history_limit - 1;
-              i >= 0;
-              i--
-            ) {
-              if (this.stepDataHistory[i] === undefined) {
-                break;
-              }
-              this.stepDataHistory[i] = undefined;
-            }
-          }
+          this.day = Number.parseInt(this.currentStep / 24 + '');
+          this.stepDataHistory[this.currentStep] = undefined;
+          // if (
+          //   this.latestStep - this.history_limit in this.stepDataHistory &&
+          //   this.stepDataHistory[this.latestStep - this.history_limit] !==
+          //     undefined
+          // ) {
+          //   for (
+          //     let i = this.latestStep - this.history_limit - 1;
+          //     i >= 0;
+          //     i--
+          //   ) {
+          //     if (this.stepDataHistory[i] === undefined) {
+          //       break;
+          //     }
+          //     this.stepDataHistory[i] = undefined;
+          //   }
+          // }
           this.drawAgents(JSON.parse(JSON.stringify(result)));
           // const diffTime = new Date().getTime() - startTime;
           // const wait = diffTime < 500 ? 500 - diffTime : 10;
@@ -448,6 +522,20 @@ export class SimulationComponent implements OnInit {
           //   this.stepModel();
           // }, wait);
         }
+      });
+  }
+
+  gotoLatest() {
+    this.backendService
+      .getLatestStep(this.params.model_name)
+      .subscribe((result: any) => {
+        if (result.success === false) {
+          this.showMessage(false, result.message);
+          return;
+        }
+        this.latestStep = result.latest_step;
+        this.currentStep = this.latestStep + 1;
+        this.stepModel();
       });
   }
 
@@ -479,7 +567,9 @@ export class SimulationComponent implements OnInit {
         }
       }
       this.plotData.labels = Object.keys(this.plotData.datasets[0].data).map(
-        Number
+        (step: any) => {
+          return Number(step);
+        }
       );
       this.plotChart.chart.update();
     }
@@ -492,6 +582,9 @@ export class SimulationComponent implements OnInit {
   }
 
   drawWorldMap(locations: any[]) {
+    if (!this.showScatterPlot) {
+      return;
+    }
     const xMin = Math.min(...locations.map((loc) => loc['x_min']));
     const xMax = Math.max(...locations.map((loc) => loc['x_max']));
     const yMin = Math.min(...locations.map((loc) => loc['y_min']));
@@ -540,10 +633,17 @@ export class SimulationComponent implements OnInit {
         lineTension: 0, // This makes the lines straight instead of curvy
       };
       boxes.push(box);
+      this.scatterChart.chart.ctx.fillText(
+        this.backendService.getLocationType(loc.type),
+        xmin,
+        ymax - 1
+      );
     }
     this.stepData.datasets.length = 1;
     this.stepData.datasets.push(...boxes);
-    this.scatterChart.chart.update();
+    if (this.scatterChart && this.scatterChart.chart) {
+      this.scatterChart.chart.update();
+    }
   }
 
   drawAgents(data: any, step?: number) {
@@ -551,18 +651,41 @@ export class SimulationComponent implements OnInit {
     if (step && step in this.stepDataHistory) {
       if (this.stepDataHistory[step] === undefined) {
         this.drawStatsPlot({ step: step }, false);
+        this.loadOldAgentsData(step);
       } else {
         dataToLoad = this.stepDataHistory[step];
         this.loadAgentData(dataToLoad);
         this.drawStatsPlot(dataToLoad, false);
-        this.scatterChart.chart.update();
+        if (this.scatterChart && this.scatterChart.chart) {
+          this.scatterChart.chart.update();
+        }
       }
     } else {
       this.loadAgentData(dataToLoad);
       this.drawStatsPlot(dataToLoad, true);
-      this.scatterChart.chart.update();
+      if (this.scatterChart && this.scatterChart.chart) {
+        this.scatterChart.chart.update();
+      }
       this.currentStep += 1;
     }
+  }
+
+  toggleScatterPlot() {
+    this.showScatterPlot = !this.showScatterPlot;
+  }
+
+  loadOldAgentsData(step: number) {
+    this.backendService
+      .oldData(this.params.model_name, step.toString())
+      .subscribe((result: any) => {
+        if (result.success === false) {
+          return;
+        }
+        this.loadAgentData(result);
+        if (this.scatterChart && this.scatterChart.chart) {
+          this.scatterChart.chart.update();
+        }
+      });
   }
 
   handlePlayPauseClick($event: any) {
@@ -578,13 +701,24 @@ export class SimulationComponent implements OnInit {
       this.stepModel();
     } else if ($event === 'LATEST') {
       this.onOff = false;
-      this.currentStep = this.latestStep + 1;
-      this.stepModel();
+      this.gotoLatest();
     } else if ($event === 'FIRST') {
       this.onOff = false;
       this.currentStep = Math.max(1, this.currentStep - this.history_limit);
       this.stepModel();
     }
+  }
+
+  addMigrants() {
+    let params = this.formatParams();
+    let payload = {
+      params: params,
+    };
+    this.backendService
+      .addMigrants(this.params.model_name, payload)
+      .subscribe((result: any) => {
+        this.showMessage(result.success, result.message);
+      });
   }
 
   formatParams() {
@@ -612,9 +746,7 @@ export class SimulationComponent implements OnInit {
     );
     const num_blocks = mapDimen[0] * mapDimen[1];
     if (
-      this.params.location.num_houses +
-        this.params.location.num_hospitals +
-        this.params.location.num_empty !=
+      this.params.location.num_houses + this.params.location.num_hospitals >
       num_blocks
     ) {
       return 'Invalid map dimension';

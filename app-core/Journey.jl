@@ -55,7 +55,7 @@ function plan_move_home!(agent::Person, model::ABM)::Bool
 
 	pos = isempty(agent.upcoming_pos) ? agent.pos : last(agent.upcoming_pos)
 	current_loc = LocationMod.location_by_pos(pos, model.parameters)
-	agent.home_loc_id === current_loc.id && return false
+	(agent.home_loc_id === -1 || agent.home_loc_id === current_loc.id) && return false
 
 	home = model.parameters.Locations[agent.home_loc_id]
 	plan_cross_loc_move!(agent, model, home)

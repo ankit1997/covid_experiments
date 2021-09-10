@@ -1,7 +1,7 @@
 module DataCollectorMod
 
 using Agents:ABM
-using ..ParametersMod:Parameters,Person
+using ..ParametersMod:Parameters,Person,is_alive, is_infected
 using ..LocationMod
 
 function capture(model::ABM)::Dict
@@ -34,6 +34,11 @@ function capture(model::ABM)::Dict
     for (_, agent::Person) in model.agents
         data["count"][agent.infection_status] = get(data["count"], agent.infection_status, 0) + 1
     end
+
+    # stats
+    data["stats"] = Dict()
+    data["stats"]["total_dead"] = count(!is_alive(agent) for (_, agent) in model.agents)
+    data["stats"]["total_infected"] = count(is_infected(agent) for (_, agent) in model.agents)
 
     return data
 

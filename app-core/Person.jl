@@ -14,7 +14,7 @@ function move_person!(agent::Person, model::ABM, pos::NTuple{2,Float64})::Bool
 	params = model.parameters
 
 	# Get old/current location
-	old_loc = get_current_loc(agent, params)
+	old_loc = LocationMod.location_by_pos(agent.pos, params)
 
 	# Get new location
 	new_loc = LocationMod.location_by_pos(pos, params)
